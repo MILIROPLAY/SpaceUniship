@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Jeu de Tir 2D (Futuriste)</title>
+    <title>Jeu de Tir 2D (Futuriste) - SpaceUniship</title>
     
     <!-- Import Firebase modules -->
     <script type="module">
@@ -16,20 +16,26 @@
 
         // --- Variables Globales Firebase ---
         let app, auth, db;
+        
+        // CORRECTION: Utiliser les variables globales fournies par l'environnement
+        // Ces variables (__app_id, __firebase_config, __initial_auth_token)
+        // seront injectées par l'environnement d'exécution (Canvas)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // CORRECTION: S'assurer que firebaseConfig est un objet, même si __firebase_config est vide
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' && __firebase_config ? __firebase_config : '{}');
 
         // --- Initialisation ---
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            // setLogLevel('debug');
+            // setLogLevel('debug'); // Décommenter pour voir les logs détaillés
             
             // Attacher les instances et les fonctions Firestore à 'window'
+            // pour qu'elles soient accessibles par le script du jeu
             window.db = db;
             window.auth = auth;
-            window.appId = appId;
+            window.appId = appId; // Rendre l'appId global
             window.doc = doc; 
             window.getDoc = getDoc; 
             window.setDoc = setDoc; 
@@ -39,12 +45,12 @@
             window.where = where; 
             window.limit = limit; 
             window.orderBy = orderBy; 
-            window.addDoc = addDoc; // NOUVEAU
-            window.deleteDoc = deleteDoc; // NOUVEAU
+            window.addDoc = addDoc; 
+            window.deleteDoc = deleteDoc; 
 
             // Définir une fonction d'initialisation d'authentification globale
-            // CORRECTION: Retour à la connexion auto (token ou anonyme)
             window.initAuth = async () => {
+                // Utiliser la persistance en mémoire pour éviter les popups/problèmes d'iframe
                 await setPersistence(auth, inMemoryPersistence);
                 
                 return new Promise((resolve, reject) => {
@@ -57,6 +63,7 @@
                              // Si pas d'utilisateur, tenter la connexion
                             console.log("Auth state changed: User is signed out. Attempting sign-in...");
                             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                // Tenter la connexion avec le token fourni
                                 signInWithCustomToken(auth, __initial_auth_token)
                                     .catch(err => {
                                         console.error("Token sign-in failed, falling back to anonymous", err);
@@ -72,16 +79,16 @@
                 });
             };
 
-            // NOUVEAU: Exposer la fonction de connexion Google (SUPPRIMÉE)
-            // window.signInWithGoogle = ...
-
         } catch (error) {
             console.error("Erreur d'initialisation de Firebase:", error);
+            // Afficher une erreur claire si Firebase ne se charge pas
             document.body.innerHTML = "Erreur de connexion à la base de données. Veuillez actualiser.";
+            // Attacher l'erreur à window pour que le script du jeu puisse la voir
+            window.dbError = "Erreur de connexion à la base de données. Veuillez actualiser.";
         }
     </script>
     
-    <!-- NOUVEAU: Importation de Tone.js pour le son -->
+    <!-- Importation de Tone.js pour le son -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
@@ -112,7 +119,7 @@
 
         canvas { 
             display: none; 
-            background-color: transparent; /* CORRECTION: Le canvas est transparent par-dessus le body */
+            background-color: transparent; /* Le canvas est transparent par-dessus le body */
             position: absolute;
             top: 0; left: 0;
             z-index: 1; /* Derrière les menus */
@@ -130,7 +137,7 @@
             100% { background: #ffff00; }
         }
 
-        /* NOUVEAU: Style des menus "Verre" */
+        /* Style des menus "Verre" */
         .screen {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); 
@@ -153,12 +160,12 @@
 
         .screen h1 {
             font-size: 1.5em;
-            color: #ffffff; /* NOUVEAU: Couleur blanche */
+            color: #ffffff;
             animation: pulseGlow 2s infinite;
             text-align: left;
             margin-bottom: 25px;
             letter-spacing: 2px;
-            text-shadow: 0 0 10px #ffffff; /* NOUVEAU: Lueur blanche */
+            text-shadow: 0 0 10px #ffffff;
         }
 
         .screen h1::before {
@@ -166,7 +173,7 @@
             color: #888;
         }
 
-        /* NOUVEAU: Style des boutons futuristes */
+        /* Style des boutons futuristes */
         .screen button, #upgrade-panel button {
             background: rgba(255, 255, 255, 0.05); /* Fond très subtil */
             border: 1px solid #ffffff; /* Bordure blanche */
@@ -187,13 +194,8 @@
             clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
         }
         
-        /* Retrait des crochets [ ] */
-        .screen button::before, #upgrade-panel button::before {
-            content: ""; margin: 0;
-        }
-        .screen button::after, #upgrade-panel button::after {
-            content: ""; margin: 0;
-        }
+        .screen button::before, #upgrade-panel button::before { content: ""; margin: 0; }
+        .screen button::after, #upgrade-panel button::after { content: ""; margin: 0; }
         
         .screen button:hover, #upgrade-panel button:hover {
             background: rgba(255, 255, 255, 0.2); /* Fond au survol */
@@ -227,14 +229,14 @@
 
         #user-id-display { font-size: 0.5em; color: #888; margin-top: 20px; }
         
-        /* --- NOUVEAU: Style de la Boutique --- */
+        /* Style de la Boutique */
         #shop-screen { 
             display: none; width: 400px; 
             max-height: 80vh; /* Permet le scroll */
             overflow-y: auto; /* Scroll vertical */
         }
         #shop-screen .points-display { font-size: 1.2em; color: #fff; margin-bottom: 15px; }
-        /* Conteneur pour le bouton + la prévisualisation */
+        
         .shop-item {
             display: flex;
             align-items: center;
@@ -245,12 +247,12 @@
             cursor: pointer;
         }
         .shop-item:hover {
-            background: rgba(255, 255, 255, 0.2); /* NOUVEAU: Survol */
+            background: rgba(255, 255, 255, 0.2); 
             border-color: #ffffff;
             box-shadow: 0 0 10px #ffffff;
         }
         .shop-item:hover .shop-button-text {
-            color: #fff; /* NOUVEAU: Couleur survol */
+            color: #fff;
         }
         
         .shop-item.disabled {
@@ -277,7 +279,6 @@
             text-align: left;
             flex-grow: 1;
         }
-        /* Retrait des crochets [ ] */
         .shop-button-text::before { content: ""; margin: 0; }
         .shop-button-text::after { content: ""; margin: 0; }
         
@@ -292,7 +293,6 @@
         .preview-ship {
             width: 0;
             height: 0;
-            /* Triangle */
             border-left: 10px solid transparent;
             border-right: 10px solid transparent;
             border-bottom: 20px solid #eee;
@@ -301,7 +301,6 @@
         .preview-ship.blue { border-bottom-color: #0088ff; }
         .preview-ship.red { border-bottom-color: #ff4444; }
         
-        /* NOUVEAU: Prévisualisation de la taille du vaisseau */
         .preview-ship.size-1 { transform: scale(1.0); }
         .preview-ship.size-2 { transform: scale(1.2); }
         .preview-ship.size-3 { transform: scale(1.4); }
@@ -316,24 +315,20 @@
         }
         .turret-light.left { top: 10px; left: -8px; }
         .turret-light.right { top: 10px; left: 4px; }
-        /* --- Fin Style Boutique --- */
-
-
         
         #game-over-screen { 
-            border-color: #ffffff; /* NOUVEAU: Accent Blanc */
-            /* Utilise le style .screen par défaut */
+            border-color: #ffffff;
         }
         #game-over-screen h1 { 
-            color: #ffffff; /* NOUVEAU: Accent Blanc */
+            color: #ffffff;
             animation: none; 
             text-shadow: 0 0 10px #ffffff;
         }
-        #game-over-screen h1::before { content: "// "; color: #ffffff; } /* NOUVEAU: Accent Blanc */
+        #game-over-screen h1::before { content: "// "; color: #ffffff; }
         
         .game-ui { display: none; position: absolute; z-index: 10; }
         
-        /* NOUVEAU: Style UI en jeu "Glace" */
+        /* Style UI en jeu "Glace" */
         #ui-container { 
             top: 10px; left: 10px; 
             font-size: 1.2em; 
@@ -351,19 +346,19 @@
         }
         
         #score { font-size: 1.2em; font-weight: bold; color: #fff; }
-        #kill-count { font-size: 1.0em; font-weight: bold; color: #ffffff; margin-top: 5px; } /* NOUVEAU: Accent Blanc */
+        #kill-count { font-size: 1.0em; font-weight: bold; color: #ffffff; margin-top: 5px; }
         
         #health-bar-container { 
             width: 200px; height: 20px; background-color: #333; 
             border: 1px solid #555; border-radius: 0; margin-top: 5px; 
         }
         #health-bar { 
-            width: 100%; height: 100%; background-color: #ffffff; /* NOUVEAU: Accent Blanc */
+            width: 100%; height: 100%; background-color: #ffffff;
             border-radius: 0; transition: width 0.2s; 
         }
         #shield-timer { color: #ffffff; font-weight: bold; margin-top: 5px; display: none; }
         
-        /* NOUVEAU: Style Panneau d'upgrade "Glace" */
+        /* Style Panneau d'upgrade "Glace" */
         #upgrade-panel { 
             position: absolute; 
             top: 10px; 
@@ -383,7 +378,7 @@
             clip-path: polygon(0 0, 100% 0, 100% 100%, 15px 100%, 0 calc(100% - 15px));
         }
         
-        /* NOUVEAU: Bouton Menu en jeu (style normal) */
+        /* Bouton Menu en jeu (style normal) */
         #back-to-menu-button {
             margin-top: 10px;
             border-color: #aaa; /* Gris neutre */
@@ -396,8 +391,8 @@
             box-shadow: 0 0 10px #fff;
         }
 
-        /* --- NOUVEAU: Style des Joysticks --- */
-        #controls-container { display: none; /* Caché par défaut, géré par JS */ }
+        /* Style des Joysticks */
+        #controls-container { display: none; }
         
         .joystick-area {
             position: absolute;
@@ -409,7 +404,7 @@
         
         /* Joystick de Mouvement (au-dessus du classement) */
         #movement-joystick-area {
-            bottom: 120px; /* Positionné au-dessus du classement */
+            bottom: 120px; 
             left: 20px;
         }
         
@@ -443,7 +438,6 @@
             transform: translate(-50%, -50%);
             display: none; /* Caché jusqu'au 'touch' */
         }
-        /* --- FIN NOUVEAU: Style Joysticks --- */
         
         /* Mini-Map SUPPRIMÉE */
         #minimap-container {
@@ -472,15 +466,14 @@
         #leaderboard-table tr:nth-child(even) {
             background-color: rgba(255, 255, 255, 0.05);
         }
-        .crown { color: #fff; font-size: 1.2em; margin-right: 5px; } /* Couronne blanche pour le style monochrome */
+        .crown { color: #fff; font-size: 1.2em; margin-right: 5px; } 
 
-        /* NOUVEAU: Classement en jeu (Déplacé en bas à gauche) */
+        /* Classement en jeu (Déplacé en bas à gauche) */
         #ingame-leaderboard-container {
-            bottom: 20px; /* MODIFIÉ: 'top: 150px;' en 'bottom: 20px;' */
+            bottom: 20px; 
             left: 20px;
             width: 220px;
             
-            /* NOUVEAU: Style Glace */
             background: rgba(0, 15, 20, 0.7);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
@@ -495,7 +488,7 @@
             color: #fff;
             margin: 0 0 5px 0;
             padding-bottom: 5px;
-            border-bottom: 1px solid #ffffff; /* NOUVEAU: Accent Blanc */
+            border-bottom: 1px solid #ffffff;
         }
         #ingame-leaderboard-body {
             list-style: none;
@@ -507,7 +500,7 @@
             white-space: nowrap;
         }
 
-        /* NOUVEAU: Alerte d'événement (Style futuriste) */
+        /* Alerte d'événement (Style futuriste) */
         @keyframes alertPulse {
             0% { transform: translateX(-50%) scale(1); opacity: 0; }
             10% { transform: translateX(-50%) scale(1.05); opacity: 1; }
@@ -527,14 +520,14 @@
             color: #ff0000; /* Rouge alerte */
             text-shadow: 0 0 10px #ff0000, 0 0 20px #fff;
             padding: 20px;
-            background: rgba(50, 0, 0, 0.7); /* Garder le rouge pour l'alerte */
+            background: rgba(50, 0, 0, 0.7);
             border: 2px solid #ff0000;
             text-align: center;
             animation: alertPulse 5s forwards; 
             clip-path: polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
         }
         
-        /* NOUVEAU: Alerte de succès (verte) */
+        /* Alerte de succès (verte) */
         .event-ui.success {
             color: #00ff00; /* Vert vif */
             text-shadow: 0 0 10px #00ff00, 0 0 20px #fff;
@@ -542,7 +535,7 @@
             border: 2px solid #00ff00;
         }
         
-        /* NOUVEAU: Barre de vie du Boss */
+        /* Barre de vie du Boss */
         #boss-health-container {
             display: none; /* Caché par défaut */
             position: absolute;
@@ -564,7 +557,7 @@
             transition: width 0.3s ease;
         }
         #boss-health-container::before {
-            content: '!! BOSS DETECTE !!';
+            content: '!! BOSS DETECTE !!'; /* Sera traduit par JS */
             position: absolute;
             top: -20px;
             left: 50%;
@@ -574,7 +567,7 @@
             text-shadow: 0 0 5px #fff;
         }
         
-        /* NOUVEAU: Style pour le slider de volume */
+        /* Style pour le slider de volume */
         #settings-screen .setting-item {
             display: flex;
             justify-content: space-between;
@@ -589,7 +582,7 @@
             height: 8px;
             background: #555;
             outline: none;
-            border: 1px solid #ffffff; /* NOUVEAU: Accent Blanc */
+            border: 1px solid #ffffff;
         }
         
         #volume-slider::-webkit-slider-thumb {
@@ -598,7 +591,7 @@
             width: 20px;
             height: 20px;
             background: #eee;
-            border: 1px solid #ffffff; /* NOUVEAU: Accent Blanc */
+            border: 1px solid #ffffff;
             cursor: pointer;
             clip-path: polygon(0 5px, 5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
         }
@@ -606,7 +599,7 @@
             width: 20px;
             height: 20px;
             background: #eee;
-            border: 1px solid #ffffff; /* NOUVEAU: Accent Blanc */
+            border: 1px solid #ffffff;
             cursor: pointer;
             border-radius: 0;
         }
@@ -618,23 +611,19 @@
     <!-- Écrans -->
     <div id="menu-screen" class="screen" style="display: block;">
         <h1 data-lang="title_connect">// Astro-Survie // Connexion</h1>
-        <!-- NOUVEAU: Champ de nom et choix de plateforme (simplifié) -->
         <input type="text" id="player-name-input" placeholder="[ENTRER NOM DE PILOTE]" data-lang-placeholder="placeholder_name">
         <select id="platform-select" style="padding: 8px; margin-bottom: 10px; background: #111; color: white; border-radius: 0; font-size: 0.8em; width: 98%; border: 1px solid #555; font-family: inherit;">
             <option value="pc" data-lang="type_pc">TYPE: PC (Clavier)</option>
             <option value="mobile" data-lang="type_mobile">TYPE: MOBILE (Tactile)</option>
         </select>
-        <!-- Fin NOUVEAU -->
         
         <button id="play-button" disabled data-lang="play_solo">Jouer en Solo</button> 
         <button id="shop-button" disabled data-lang="shop">Boutique</button>
         <button id="multiplayer-button" disabled data-lang="online">Joueurs en Ligne (0)</button>
-        <!-- NOUVEAU: Bouton Paramètres -->
         <button id="settings-button" style="border-color: #aaa; color: #aaa;" data-lang="settings">[ PARAMÈTRES ]</button>
         
         <div id="user-id-display" data-lang="loading">CHARGEMENT SESSION...</div>
 
-        <!-- NOUVEAU: Tableau de Score -->
         <table id="leaderboard-table">
             <thead>
                 <tr>
@@ -648,11 +637,11 @@
             </tbody>
         </table>
     </div>
+    
     <div id="shop-screen" class="screen">
         <h1 data-lang="title_shop">Boutique // Arsenal</h1>
         <div id="shop-points-display" class="points-display">Points : 0</div>
 
-        <!-- NOUVEAU: Boutiques avec Prévisualisation -->
         <div id="buy-skin-blue" class="shop-item">
             <span class="shop-button-text" data-lang="shop_skin_blue" data-lang-cost="shop_cost">Skin Viper (Coût: 500)</span>
             <div class="skin-preview">
@@ -677,7 +666,6 @@
             </div>
         </div>
         
-        <!-- NOUVEAU: Améliorations déplacées ici -->
         <h3 style="margin-top:20px; font-size: 0.8em; color: #888;" data-lang="shop_permanent">// AMÉLIORATIONS PERMANENTES</h3>
         
         <div id="buy-ship-speed" class="shop-item">
@@ -708,11 +696,9 @@
         <button id="shop-back-button" style="margin-top: 20px;" data-lang="back">Retour</button>
     </div>
     
-    <!-- NOUVEAU: Écran des Paramètres -->
     <div id="settings-screen" class="screen" style="display: none; width: 400px;">
         <h1 data-lang="title_settings">// PARAMÈTRES</h1>
         
-        <!-- NOUVEAU: Sélecteur de langue -->
         <div class="setting-item">
             <span data-lang="language">Langue</span>
             <select id="language-select" style="padding: 8px; background: #111; color: white; border-radius: 0; font-size: 1em; border: 1px solid #ffffff; font-family: inherit; clip-path: none; width: 60%;">
@@ -726,7 +712,6 @@
         
         <div class="setting-item">
             <span data-lang="volume">VOLUME AUDIO</span>
-            <!-- Min -50dB (silence), Max 0dB (normal) -->
             <input type="range" id="volume-slider" min="-50" max="0" step="1">
         </div>
         
@@ -734,7 +719,6 @@
             <button id="toggle-particles-button" data-lang="particles">Particules: OUI</button>
         </div>
 
-        <!-- NOUVEAU: Bouton Musique -->
         <div class="setting-item">
             <button id="toggle-music-button" data-lang="music">Musique: OUI</button>
         </div>
@@ -743,13 +727,12 @@
     </div>
     
     <div id="ui-container" class="game-ui">
-        <div id="score">Points : 0</div>
-        <div id="kill-count">// KILLS: 0</div> <!-- NOUVEAU -->
+        <div id="score" data-lang="ui_points">// POINTS : 0</div>
+        <div id="kill-count" data-lang="ui_kills">// KILLS: 0</div>
         <div id="health-bar-container"><div id="health-bar"></div></div>
-        <div id="shield-timer">Bouclier: 5.0s</div>
+        <div id="shield-timer" data-lang="ui_shield">Bouclier: 5.0s</div>
     </div>
     
-    <!-- NOUVEAU: Barre de vie du Boss (Globale) -->
     <div id="boss-health-container" class="game-ui">
         <div id="boss-health-bar-fill"></div>
     </div>
@@ -761,9 +744,6 @@
     </div>
     <canvas id="gameCanvas"></canvas>
     
-    <!-- Mini-Map SUPPRIMÉE -->
-    
-    <!-- Panneau d'upgrade en jeu RESTAURÉ -->
     <div id="upgrade-panel" class="game-ui">
         <button id="upgrade-fire-rate" data-lang="upgrade_fireRate">Cadence (Coût: 100)</button>
         <button id="upgrade-ship-speed" data-lang="upgrade_shipSpeed">Vitesse V. (Coût: 100)</button>
@@ -772,13 +752,9 @@
         <button id="back-to-menu-button" data-lang="back_menu">Menu Principal</button>
     </div>
     
-    <!-- NOUVEAU: Alerte d'événement (Succès) -->
     <div id="event-success" class="event-ui">ÉVÉNEMENT TERMINÉ</div>
-    
-    <!-- NOUVEAU: Alerte d'événement -->
     <div id="event-alert" class="event-ui">ALERTE ÉVÉNEMENT</div>
     
-    <!-- NOUVEAU: Classement en jeu -->
     <div id="ingame-leaderboard-container" class="game-ui">
         <h3 data-lang="leaderboard_ingame">// TOP 3 PILOTES</h3>
         <ul id="ingame-leaderboard-body">
@@ -786,7 +762,6 @@
         </ul>
     </div>
     
-    <!-- NOUVEAU: Conteneurs pour les Joysticks (remplace l'ancien #controls-container) -->
     <div id="movement-joystick-area" class="joystick-area">
         <div id="movement-joystick-base" class="joystick-base"></div>
         <div id="movement-joystick-stick" class="joystick-stick"></div>
@@ -796,106 +771,98 @@
         <div id="action-joystick-stick" class="joystick-stick"></div>
     </div>
 
-
-    <!-- Lecteur audio MP3 SUPPRIMÉ -->
-    <!-- <audio id="background-music" src="http://googleusercontent.com/file_content/1" loop></audio> -->
-
     <script>
         // --- Références Firebase ---
         let db, auth, userId, appId;
-        let dbGameDataRoot, dbUserDataRoot; // NOUVEAU: Chemins de base de données
+        let dbGameDataRoot, dbUserDataRoot; 
         
-        // --- NOUVEAU: Variables de Son ---
-        let shootSound, explosionSound, hitSound, music, alienShootSound, buttonSound; // NOUVEAU: buttonSound
-        let mainVolume; // NOUVEAU: Contrôleur de volume principal
+        // --- Variables de Son ---
+        let shootSound, explosionSound, hitSound, music, alienShootSound, buttonSound; 
+        let mainVolume; 
         let audioReady = false;
 
         // --- Variables Globales de Jeu ---
         let canvas, ctx;
-        let miniMapCanvas, miniMapCtx; // miniMapCtx est maintenant null, mais on laisse les refs
+        let miniMapCanvas, miniMapCtx; 
         let player; 
         let bullets = [], asteroids = [], aliens = [], particles = [], stars = [], powerUps = [];
-        let bruteAliens = []; // NOUVEAU: Ennemis "Brute"
-        let bosses = []; // NOUVEAU: Liste des Boss
+        let bruteAliens = []; 
+        let bosses = []; 
         let debris = []; 
-        let laserWalls = []; // NOUVEAU: Murs laser du Boss
+        let laserWalls = []; 
         let otherPlayers = []; 
         let leaderboardData = []; 
-        let isHost = false; // NOUVEAU: Variable pour le multijoueur
+        let isHost = false; 
         
-        // NOUVEAU: Listeners pour le monde synchronisé
         let unsubscribePlayers = null; 
         let unsubscribeWorldObjects = null;
         let unsubscribeRemovals = null;
-        let unsubscribeLeaderboard = null; // CORRECTION: Variable manquante
-        let unsubscribeCurrentEvent = null; // NOUVEAU
+        let unsubscribeLeaderboard = null; 
+        let unsubscribeCurrentEvent = null; 
         
         let gameIsOver = false;
         let gameState = 'LOADING'; 
         
-        // NOUVEAU: Variables d'événement
-        let eventTimer = 120000; // CORRECTION: Premier événement après 2 min (120000 ms)
-        const EVENT_INTERVAL_MIN = 180000; // CORRECTION: 3 min
-        const EVENT_INTERVAL_MAX = 300000; // CORRECTION: 5 min
+        let eventTimer = 120000; 
+        const EVENT_INTERVAL_MIN = 180000; 
+        const EVENT_INTERVAL_MAX = 300000; 
         let currentEvent = null;
-        let invasionKillsNeeded = 0; // NOUVEAU: Compteur pour l'invasion
+        let invasionKillsNeeded = 0; 
         
-        // NOUVEAU: Paramètres de jeu
         let gameSettings = {
             particlesEnabled: true,
-            volume: -10, // Volume par défaut (-10 dB)
-            musicEnabled: true, // NOUVEAU
-            language: 'fr' // NOUVEAU
+            volume: -10, 
+            musicEnabled: true, 
+            language: 'fr' 
         };
         
-        // Identifiant de session unique pour le multijoueur
         const sessionId = `${Date.now()}-${Math.floor(Math.random() * 10000)}`; 
         
         // UI elements
         let scoreElement, healthBarElement, shieldTimerElement, gameOverElement, killCountElement;
-        let upgradeFireRateBtn, upgradeShipSpeedBtn, upgradeBulletSpeedBtn, upgradeMaxHealthBtn; // Restauré
+        let upgradeFireRateBtn, upgradeShipSpeedBtn, upgradeBulletSpeedBtn, upgradeMaxHealthBtn; 
         let menuScreen, shopScreen, playButton, shopButton, shopBackButton, restartButton;
-        let googleSignInButton; // NOUVEAU
-        let settingsScreen, volumeSlider, toggleParticlesButton, settingsButton, settingsBackButton, toggleMusicButton, languageSelect; // NOUVEAU
+        let googleSignInButton; 
+        let settingsScreen, volumeSlider, toggleParticlesButton, settingsButton, settingsBackButton, toggleMusicButton, languageSelect; 
         let shopPointsDisplay, buySkinBlueBtn, buySkinRedBtn, buyAutoTurretBtn;
-        let buyShipSpeedBtn_shop, buyBulletSpeedBtn_shop, buyFireRateBtn_shop, buyMaxHealthBtn_shop, buyShipSizeBtn; // Noms de boutique
+        let buyShipSpeedBtn_shop, buyBulletSpeedBtn_shop, buyFireRateBtn_shop, buyMaxHealthBtn_shop, buyShipSizeBtn; 
         let buyBulletDamageBtn, buyHealthRegenBtn;
-        let finalScoreDisplay, playerNameInput, multiplayerButton, leaderboardBody, ingameLeaderboardBody, backToMenuButton; // backToMenuButton restauré
-        let eventAlertElement; // NOUVEAU
-        let eventSuccessElement; // NOUVEAU
-        let bossHealthBarElement, bossHealthBarFillElement; // NOUVEAU
-        
-        // NOUVEAU: UI des Joysticks
+        let finalScoreDisplay, playerNameInput, multiplayerButton, leaderboardBody, ingameLeaderboardBody, backToMenuButton; 
+        let eventAlertElement; 
+        let eventSuccessElement; 
+        let bossHealthBarElement, bossHealthBarFillElement; 
+
         let moveArea, moveBase, moveStick, actionArea, actionBase, actionStick;
         let moveTouchId = null, actionTouchId = null;
         let moveStartPos = { x: 0, y: 0 }, actionStartPos = { x: 0, y: 0 };
-        const maxJoyRadius = 50; // Rayon max de déplacement du stick
-        const joyThreshold = 20; // Seuil pour activer
+        const maxJoyRadius = 50; 
+        const joyThreshold = 20; 
         
         // Game settings
         const MAP_SIZE = 3000; 
         const MAP_BOUND_RADIUS = 1400; 
-        const GAME_SPEED = 0.7; // Vitesse de jeu globale unifiée
-        const BOSS_SPAWN_SCORE = 15000; // CORRECTION: Apparition beaucoup plus rare (15k points)
-        const BRUTE_SPAWN_SCORE = 1000; // NOUVEAU
+        const GAME_SPEED = 0.7; 
+        const BOSS_SPAWN_SCORE = 15000; 
+        const BRUTE_SPAWN_SCORE = 1000; 
         let bossSpawned = false; 
-        let bruteSpawned = false; // NOUVEAU
+        let bruteSpawned = false; 
         
         let numAsteroids = 50, numStars = 150; 
         let lastShotTime = 0, alienSpawnTimer = 0, powerUpSpawnTimer = 0;
-        let meteoriteSpawnTimer = 0; // NOUVEAU
-        const METEORITE_SPAWN_INTERVAL = 5000; // NOUVEAU: Spawn de météorites toutes les 5 secondes
-        let bruteAlienSpawnTimer = 0; // NOUVEAU
+        let meteoriteSpawnTimer = 0; 
+        const METEORITE_SPAWN_INTERVAL = 5000; 
+        let bruteAlienSpawnTimer = 0; 
         let autoTurretTimer = 0; 
-        let lastLeaderboardUpdateTime = 0; // NOUVEAU
-        const playerTurnSpeed = 0.03; // CORRECTION: Vitesse de rotation rapide (0.03)
+        let lastLeaderboardUpdateTime = 0; 
+        const playerTurnSpeed = 0.03; 
         const alienSpawnInterval = 15000; 
-        const bruteAlienSpawnInterval = 45000; // NOUVEAU: 45 secondes
-        const powerUpSpawnInterval = 30000; // CORRECTION: 30 secondes (au lieu de 10)
+        const bruteAlienSpawnInterval = 45000; 
+        const powerUpSpawnInterval = 30000; 
         const POWERUP_MAX_LIFE = 60000; 
         const autoTurretFireRate = 1000; 
         const SHIELD_DURATION = 20000; 
         const controlState = { thrust: false, left: false, right: false, shoot: false };
+        // Données de sauvegarde par défaut (utilisées si aucune sauvegarde n'est trouvée)
         const defaultSaveData = {
             score: 0, 
             killCount: 0,
@@ -904,8 +871,8 @@
             upgrades: { 
                 level: 0, 
                 health: 100, 
-                speed: 4.0 * GAME_SPEED, // CORRECTION: Vitesse augmentée
-                bulletSpeed: 10 * GAME_SPEED, // CORRECTION: Vitesse de tir (10)
+                speed: 4.0 * GAME_SPEED, 
+                bulletSpeed: 10 * GAME_SPEED, 
                 fireRate: 400, 
                 radius: 15, 
                 bulletDamage: 50, 
@@ -923,10 +890,10 @@
             shopCosts: { skinBlue: 500, skinRed: 1000, autoTurret: 2000 },
             skinsOwned: { default: true, blue: false, red: false },
             playerName: "Pilote" + Math.floor(Math.random() * 999),
-            gameSettings: { particlesEnabled: true, volume: -10, musicEnabled: true, language: 'fr' } // NOUVEAU: musicEnabled + language
+            gameSettings: { particlesEnabled: true, volume: -10, musicEnabled: true, language: 'fr' } 
         };
         
-        // --- NOUVEAU: Système de Traduction ---
+        // --- Système de Traduction ---
         let currentLang = 'fr';
         const translations = {
             'fr': {
@@ -979,15 +946,15 @@
                 'alert_invasion_remaining': '// INVASION // {kills} RESTANTS',
                 'alert_mega_brute': '// ALERTE: MEGA-BRUTE DETECTEE //',
                 'alert_ultra_boss': '// ALERTE: TITAN ULTRA DETECTE //',
-                'alert_boss': '!! BOSS DETECTE !!', // NOUVEAU
+                'alert_boss': '!! BOSS DETECTE !!', 
                 'alert_invasion_small': '// INVASION // OBJECTIF: {kills} KILLS',
                 'success_invasion': '// INVASION REPoussÉE //',
                 'success_wave': '// VAGUE REPoussÉE //',
                 'success_boss': '// BOSS VAINCU //',
                 'success_ultra_boss': '// TITAN ULTRA VAINCU //',
                 'success_mega_brute': '// MEGA-BRUTE ÉLIMINÉE //',
-                'level_boss': 'N.BOSS', // NOUVEAU
-                'level_ultra': 'N.ULTRA' // NOUVEAU
+                'level_boss': 'N.BOSS', 
+                'level_ultra': 'N.ULTRA' 
             },
             'en': {
                 'title_connect': '// Astro-Survive // Connect',
@@ -1039,15 +1006,15 @@
                 'alert_invasion_remaining': '// INVASION // {kills} REMAINING',
                 'alert_mega_brute': '// ALERT: MEGA-BRUTE DETECTED //',
                 'alert_ultra_boss': '// ALERT: ULTRA TITAN DETECTED //',
-                'alert_boss': '!! BOSS DETECTED !!', // NOUVEAU
+                'alert_boss': '!! BOSS DETECTED !!', 
                 'alert_invasion_small': '// INVASION // OBJECTIVE: {kills} KILLS',
                 'success_invasion': '// INVASION REPELLED //',
                 'success_wave': '// WAVE REPELLED //',
                 'success_boss': '// BOSS DEFEATED //',
                 'success_ultra_boss': '// ULTRA TITAN DEFEATED //',
                 'success_mega_brute': '// MEGA-BRUTE ELIMINATED //',
-                'level_boss': 'L.BOSS', // NOUVEAU
-                'level_ultra': 'L.ULTRA' // NOUVEAU
+                'level_boss': 'L.BOSS', 
+                'level_ultra': 'L.ULTRA' 
             },
             'es': {
                 'title_connect': '// Astro-Sobrevive // Conectar',
@@ -1099,15 +1066,15 @@
                 'alert_invasion_remaining': '// INVASIÓN // {kills} RESTANTES',
                 'alert_mega_brute': '// ALERTA: MEGA-BRUTO DETECTADO //',
                 'alert_ultra_boss': '// ALERTA: TITÁN ULTRA DETECTADO //',
-                'alert_boss': '!! JEFE DETECTADO !!', // NOUVEAU
+                'alert_boss': '!! JEFE DETECTADO !!', 
                 'alert_invasion_small': '// INVASIÓN // OBJETIVO: {kills} BAJAS',
                 'success_invasion': '// INVASIÓN REPELIDA //',
                 'success_wave': '// OLEADA REPELIDA //',
                 'success_boss': '// JEFE DERROTADO //',
                 'success_ultra_boss': '// TITÁN ULTRA DERROTADO //',
                 'success_mega_brute': '// MEGA-BRUTO ELIMINADO //',
-                'level_boss': 'N.JEFE', // NOUVEAU
-                'level_ultra': 'N.ULTRA' // NOUVEAU
+                'level_boss': 'N.JEFE', 
+                'level_ultra': 'N.ULTRA' 
             },
             'ja': {
                 'title_connect': '// アストロサバイブ // 接続',
@@ -1159,15 +1126,15 @@
                 'alert_invasion_remaining': '// 侵略 // 残り {kills} キル',
                 'alert_mega_brute': '// 警告: メガ・ブルート検出 //',
                 'alert_ultra_boss': '// 警告: ウルトラ・タイタン検出 //',
-                'alert_boss': '!! ボス検出 !!', // NOUVEAU
+                'alert_boss': '!! ボス検出 !!', 
                 'alert_invasion_small': '// 侵略 // 目標: {kills} キル',
                 'success_invasion': '// 侵略を撃退 //',
                 'success_wave': '// ウェーブ撃退 //',
                 'success_boss': '// ボス撃破 //',
                 'success_ultra_boss': '// ウルトラ・タイタン撃破 //',
                 'success_mega_brute': '// メガ・ブルート撃破 //',
-                'level_boss': 'L.BOSS', // NOUVEAU
-                'level_ultra': 'L.ULTRA' // NOUVEAU
+                'level_boss': 'L.BOSS', 
+                'level_ultra': 'L.ULTRA' 
             },
             'zh': {
                 'title_connect': '// 太空生存 // 连接',
@@ -1219,73 +1186,63 @@
                 'alert_invasion_remaining': '// 入侵 // 剩余 {kills} 击杀',
                 'alert_mega_brute': '// 警报: 检测到巨型野兽 //',
                 'alert_ultra_boss': '// 警报: 检测到究极泰坦 //',
-                'alert_boss': '!! BOSS 已检测 !!', // NOUVEAU
+                'alert_boss': '!! BOSS 已检测 !!', 
                 'alert_invasion_small': '// 入侵 // 目标: {kills} 击杀',
                 'success_invasion': '// 入侵已击退 //',
                 'success_wave': '// 波次已击退 //',
                 'success_boss': '// BOSS 已击败 //',
                 'success_ultra_boss': '// 究极泰坦已击败 //',
                 'success_mega_brute': '// 巨型野兽已消灭 //',
-                'level_boss': '级.BOSS', // NOUVEAU
-                'level_ultra': '级.ULTRA' // NOUVEAU
+                'level_boss': '级.BOSS', 
+                'level_ultra': '级.ULTRA' 
             }
         };
 
-        // --- FIN Traduction ---
-        
-        // --- NOUVEAU: Initialisation des Sons (Musique Tone.js) ---
+        // --- Initialisation des Sons (Musique Tone.js) ---
         function initAudio() {
-            // Évite le crash si Tone.js n'est pas chargé
             if (typeof Tone === 'undefined') return;
 
-            // NOUVEAU: Créer le volume principal
             mainVolume = new Tone.Volume(gameSettings.volume).toDestination();
 
-            // Son de tir (Plus "Blaster")
             shootSound = new Tone.MembraneSynth({
                 pitchDecay: 0.01,
                 octaves: 6,
                 oscillator: { type: 'square' },
                 envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.1 },
                 volume: -15
-            }).connect(mainVolume); // Connecter au volume principal
+            }).connect(mainVolume); 
             
-            // CORRECTION: Son de tir Alien dédié
             alienShootSound = new Tone.MembraneSynth({
                 pitchDecay: 0.02,
                 octaves: 4,
                 oscillator: { type: 'triangle' },
                 envelope: { attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.1 },
-                volume: -20 // Plus silencieux
+                volume: -20 
             }).connect(mainVolume);
             
-            // NOUVEAU: Son de bouton
             buttonSound = new Tone.Synth({
                 oscillator: { type: 'triangle' },
                 envelope: { attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.1 },
                 volume: -10
             }).connect(mainVolume);
 
-            // Son d'explosion (Plus "Boom")
             explosionSound = new Tone.NoiseSynth({
                 noise: { type: 'pink' },
                 envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.2 },
                 volume: -5
-            }); // Ne pas connecter à la destination
-            const explosionFilter = new Tone.AutoFilter("8n").connect(mainVolume).start(); // Connecter le filtre au volume
+            }); 
+            const explosionFilter = new Tone.AutoFilter("8n").connect(mainVolume).start(); 
             explosionSound.connect(explosionFilter);
             
-            // Son de dégât (Alerte)
             hitSound = new Tone.FMSynth({
                 harmonicity: 3,
                 modulationIndex: 10,
                 oscillator: { type: 'sine' },
                 envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 },
                 volume: -5
-            }).connect(mainVolume); // Connecter au volume principal
+            }).connect(mainVolume); 
             
-            // NOUVELLE Musique (Ambiante, non répétitive)
-            const reverb = new Tone.Reverb(4).connect(mainVolume); // Connecter la réverbération au volume
+            const reverb = new Tone.Reverb(4).connect(mainVolume); 
             const synth = new Tone.FMSynth({
                 harmonicity: 1.5,
                 modulationIndex: 10,
@@ -1300,19 +1257,18 @@
                 volume: -15
             }).connect(reverb);
             
-            // Séquence plus longue et plus ambiante
             const melody = new Tone.Pattern((time, note) => {
-                synth.triggerAttackRelease(note, "1m", time); // Note plus longue
-            }, ["C3", null, "Eb3", "G3", null, "Bb3", "C4", null, "G3", "F3", null, "Eb3", "C3", null, null, null], "1m"); // Se joue sur une mesure complète
+                synth.triggerAttackRelease(note, "1m", time); 
+            }, ["C3", null, "Eb3", "G3", null, "Bb3", "C4", null, "G3", "F3", null, "Eb3", "C3", null, null, null], "1m"); 
             melody.humanize = true;
 
             const bass = new Tone.Loop((time) => {
-                bassSynth.triggerAttackRelease("C2", "2m", time); // Note de basse très longue (2 mesures)
+                bassSynth.triggerAttackRelease("C2", "2m", time); 
             }, "2m");
 
             music = [synth, bassSynth, melody, bass];
             
-            Tone.Transport.bpm.value = 80; // Tempo plus lent
+            Tone.Transport.bpm.value = 80; 
             audioReady = true;
         }
 
@@ -1320,15 +1276,14 @@
 
         function getUIElements() {
             scoreElement = document.getElementById('score');
-            killCountElement = document.getElementById('kill-count'); // NOUVEAU
+            killCountElement = document.getElementById('kill-count'); 
             healthBarElement = document.getElementById('health-bar');
             shieldTimerElement = document.getElementById('shield-timer');
-            // Panneau d'upgrade en jeu RESTAURÉ
             upgradeFireRateBtn = document.getElementById('upgrade-fire-rate');
             upgradeShipSpeedBtn = document.getElementById('upgrade-ship-speed');
             upgradeBulletSpeedBtn = document.getElementById('upgrade-bullet-speed');
             upgradeMaxHealthBtn = document.getElementById('upgrade-max-health');
-            backToMenuButton = document.getElementById('back-to-menu-button'); // NOUVEAU
+            backToMenuButton = document.getElementById('back-to-menu-button'); 
             
             menuScreen = document.getElementById('menu-screen');
             shopScreen = document.getElementById('shop-screen');
@@ -1337,23 +1292,20 @@
             shopButton = document.getElementById('shop-button');
             shopBackButton = document.getElementById('shop-back-button');
             restartButton = document.getElementById('restart-button');
-            googleSignInButton = document.getElementById('google-signin-button'); // NOUVEAU
             
-            // NOUVEAU: Éléments des paramètres
             settingsScreen = document.getElementById('settings-screen');
             volumeSlider = document.getElementById('volume-slider');
             toggleParticlesButton = document.getElementById('toggle-particles-button');
             settingsButton = document.getElementById('settings-button');
             settingsBackButton = document.getElementById('settings-back-button');
-            toggleMusicButton = document.getElementById('toggle-music-button'); // NOUVEAU
-            languageSelect = document.getElementById('language-select'); // NOUVEAU
+            toggleMusicButton = document.getElementById('toggle-music-button'); 
+            languageSelect = document.getElementById('language-select'); 
             
             shopPointsDisplay = document.getElementById('shop-points-display');
             buySkinBlueBtn = document.getElementById('buy-skin-blue');
             buySkinRedBtn = document.getElementById('buy-skin-red');
             buyAutoTurretBtn = document.getElementById('buy-auto-turret');
             
-            // NOUVEAU: Boutons d'upgrade dans la boutique
             buyShipSpeedBtn_shop = document.getElementById('buy-ship-speed');
             buyBulletSpeedBtn_shop = document.getElementById('buy-bullet-speed');
             buyFireRateBtn_shop = document.getElementById('buy-fire-rate');
@@ -1365,18 +1317,15 @@
             finalScoreDisplay = document.getElementById('final-score-display');
             playerNameInput = document.getElementById('player-name-input'); 
             multiplayerButton = document.getElementById('multiplayer-button'); 
-            // Mini-map supprimée
             leaderboardBody = document.getElementById('leaderboard-body');
             ingameLeaderboardBody = document.getElementById('ingame-leaderboard-body'); 
             
-            eventAlertElement = document.getElementById('event-alert'); // NOUVEAU
-            eventSuccessElement = document.getElementById('event-success'); // NOUVEAU
+            eventAlertElement = document.getElementById('event-alert'); 
+            eventSuccessElement = document.getElementById('event-success'); 
             
-            // NOUVEAU: Barre de vie du Boss
             bossHealthBarElement = document.getElementById('boss-health-container');
             bossHealthBarFillElement = document.getElementById('boss-health-bar-fill');
 
-            // NOUVEAU: Joysticks
             moveArea = document.getElementById('movement-joystick-area');
             moveBase = document.getElementById('movement-joystick-base');
             moveStick = document.getElementById('movement-joystick-stick');
@@ -1386,21 +1335,19 @@
         }
 
         function updateAllUI() {
-            // CORRECTION: Ajout de vérifications (null checks) pour tous les éléments de l'UI
             if (!player) return; 
             const pScore = player.score;
             const pUpgrades = player.upgrades;
             const pCosts = player.upgradeCosts;
             const sCosts = player.shopCosts;
             const skins = player.skinsOwned;
-            const lang = translations[currentLang]; // NOUVEAU
+            const lang = translations[currentLang]; 
             
             if (scoreElement) scoreElement.innerText = `${lang.ui_points}: ${pScore}`;
             if (killCountElement) killCountElement.innerText = `${lang.ui_kills}: ${player.killCount || 0}`; 
             if (healthBarElement) healthBarElement.style.width = (player.health / pUpgrades.health) * 100 + '%';
             
-            // Affichage de la vie du boss (utilise maintenant le premier de la liste)
-            const currentBoss = bosses[0]; // NOUVEAU
+            const currentBoss = bosses[0]; 
             if (currentBoss) {
                 const bossHealth = Math.max(0, currentBoss.health);
                 if (bossHealthBarElement) bossHealthBarElement.style.display = 'block';
@@ -1418,7 +1365,6 @@
                 }
             }
             
-            // NOUVEAU: Mettre à jour les boutons d'upgrade en JEU
             if (upgradeFireRateBtn) {
                 upgradeFireRateBtn.innerText = `${lang.upgrade_fireRate} (${lang.shop_cost}: ${pCosts.fireRate})`;
                 upgradeFireRateBtn.disabled = pScore < pCosts.fireRate;
@@ -1436,7 +1382,6 @@
                 upgradeMaxHealthBtn.disabled = pScore < pCosts.maxHealth;
             }
 
-            // NOUVEAU: Mettre à jour les boutons d'upgrade dans la boutique
             if (shopPointsDisplay) shopPointsDisplay.innerText = `${lang.ui_points}: ${pScore}`;
             
             if (buyFireRateBtn_shop) {
@@ -1475,8 +1420,6 @@
                 buyHealthRegenBtn.classList.toggle('disabled', pScore < pCosts.healthRegen);
             }
 
-
-            // Mise à jour de l'état des boutons de la boutique (visuel)
             if (buySkinBlueBtn) {
                 const textEl = buySkinBlueBtn.querySelector('.shop-button-text');
                 if (textEl) textEl.innerText = skins.blue ? `${lang.shop_skin_blue} (${lang.shop_owned})` : `${lang.shop_skin_blue} (${lang.shop_cost}: ${sCosts.skinBlue})`;
@@ -1493,7 +1436,6 @@
                 buyAutoTurretBtn.classList.toggle('disabled', player.hasAutoTurret || pScore < sCosts.autoTurret);
             }
             
-            // Gérer le cas où le skin est équipé
             if (skins.blue && player.skin === 'blue' && buySkinBlueBtn) {
                 const textEl = buySkinBlueBtn.querySelector('.shop-button-text');
                 if (textEl) textEl.innerText = `${lang.shop_skin_blue} (${lang.shop_equipped})`;
@@ -1503,8 +1445,6 @@
                 if (textEl) textEl.innerText = `${lang.shop_skin_red} (${lang.shop_equipped})`;
             }
 
-
-            // NOUVEAU: Mettre à jour l'UI des Paramètres
             if (volumeSlider) { 
                 volumeSlider.value = gameSettings.volume;
             }
@@ -1520,7 +1460,7 @@
                 multiplayerButton.innerText = `${lang.online} (${otherPlayers.length + 1})`;
                 if (gameState === 'MENU') {
                     if (otherPlayers.length > 0) {
-                         multiplayerButton.innerText = `${lang.online} (${lang.shop_cost}: ${otherPlayers.length + 1})`; // Simple réutilisation, 'Join' serait mieux
+                         multiplayerButton.innerText = `${lang.online} (${lang.shop_cost}: ${otherPlayers.length + 1})`; 
                     } else {
                          multiplayerButton.innerText = `${lang.online} (Solo)`;
                     }
@@ -1529,7 +1469,6 @@
             updateLeaderboardUI();
         }
         
-        // Met à jour le tableau de score
         function updateLeaderboardUI() {
             let html = '';
             let ingameHtml = '';
@@ -1541,11 +1480,10 @@
             } else {
                 leaderboardData.forEach((data, index) => {
                     const crown = index === 0 ? '<span class="crown">👑</span>' : '';
-                    const color = data.id === userId ? '#ffffff' : 'white'; // NOUVEAU: Accent blanc
+                    const color = data.id === userId ? '#ffffff' : 'white'; 
                     const name = data.playerName;
                     const score = data.score;
 
-                    // Version pour le menu (tableau)
                     html += `
                         <tr>
                             <td>${index + 1}</td>
@@ -1554,68 +1492,62 @@
                         </tr>
                     `;
                     
-                    // NOUVEAU: Version pour le jeu (liste, top 3)
                     if (index < 3) {
                          ingameHtml += `<li style="color:${color};">${crown}${name}: ${score}</li>`;
                     }
                 });
             }
             
-            // CORRECTION: Ajouter des vérifications (null checks)
             if (leaderboardBody) leaderboardBody.innerHTML = html;
             if (ingameLeaderboardBody) ingameLeaderboardBody.innerHTML = ingameHtml;
         }
 
 
-        // --- NOUVEAU: Boucle d'animation pour le menu ---
         function menuLoop() {
-            // S'arrête si on entre en jeu
             if (gameState === 'GAME') return; 
             
             requestAnimationFrame(menuLoop);
             
             if (!ctx) return; 
             
-            // Créer les étoiles si elles n'existent pas
             if (stars.length === 0 && canvas.width > 0) createStars();
             
-            // Mettre à jour les étoiles (sans thrust)
             controlState.thrust = false; 
             updateStars(); 
             
-            // Dessiner
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             drawStars();
         }
         
-        // NOUVEAU: Helper pour détecter le mobile
         function isMobile() {
+            // Détecter la plateforme en fonction de la sélection de l'utilisateur
+            const platformSelect = document.getElementById('platform-select');
+            if (platformSelect && platformSelect.value === 'mobile') {
+                return true;
+            }
+            // Fallback pour la détection standard
             return ('ontouchstart' in window);
         }
 
         function setGameState(newState) {
             gameState = newState;
             
-            // --- NOUVEAU: Gérer l'animation du fond et la boucle de jeu ---
             if (newState === 'MENU' || newState === 'SHOP' || newState === 'SETTINGS' || newState === 'GAMEOVER') {
                 document.body.classList.add('menu-active');
-                gameIsOver = true; // Arrêter la boucle de jeu
-                canvas.style.display = 'block'; // Afficher le canvas pour les étoiles
+                gameIsOver = true; 
+                canvas.style.display = 'block'; 
             } else {
                 document.body.classList.remove('menu-active');
-                gameIsOver = false; // Démarrer la boucle de jeu
+                gameIsOver = false; 
             }
-            // --- FIN NOUVEAU ---
 
-            // Cacher tous les écrans
             document.querySelectorAll('.game-ui').forEach(el => el.style.display = 'none'); 
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('shop-screen').style.display = 'none';
             document.getElementById('game-over-screen').style.display = 'none';
             document.getElementById('settings-screen').style.display = 'none';
             
-            // Cacher les Joysticks
             if (isMobile()) {
                 moveArea.style.display = 'none';
                 actionArea.style.display = 'none';
@@ -1627,14 +1559,12 @@
                 startLeaderboardListener(); 
                 if (stars.length === 0) createStars(); 
                 
-                // Démarrer la musique de menu si activée
                 if(audioReady && gameSettings.musicEnabled && Tone.Transport.state !== "started") {
                     Tone.Transport.start();
                     music.forEach(m => m.start ? m.start(0) : null);
                 }
-                menuLoop(); // Démarrer l'animation de menu
+                menuLoop(); 
                 
-                // Gérer l'état des boutons de connexion
                 if (auth && auth.currentUser) { 
                     if(googleSignInButton) googleSignInButton.style.display = 'none'; 
                     if (playButton) playButton.disabled = false;
@@ -1649,13 +1579,12 @@
 
             } else if (newState === 'SHOP') {
                 document.getElementById('shop-screen').style.display = 'block';
-                menuLoop(); // Continuer l'animation de menu
+                menuLoop(); 
             } else if (newState === 'SETTINGS') { 
                 document.getElementById('settings-screen').style.display = 'block';
-                menuLoop(); // Continuer l'animation de menu
+                menuLoop(); 
             } else if (newState === 'GAME') {
                 
-                // NOUVEAU: Démarrer le contexte audio et la musique
                 if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
                     Tone.context.resume();
                 }
@@ -1663,7 +1592,6 @@
                     initAudio();
                 }
                 
-                // NOUVEAU: Démarrer la musique Tone.js (seulement si activée)
                 if(audioReady && gameSettings.musicEnabled) {
                     Tone.Transport.start();
                     music.forEach(m => m.start ? m.start(0) : null);
@@ -1673,7 +1601,6 @@
                 canvas.style.display = 'block';
                 document.querySelectorAll('.game-ui').forEach(el => el.style.display = 'block'); 
                 
-                // NOUVEAU: Afficher les Joysticks
                 if (isMobile()) {
                     moveArea.style.display = 'block';
                     actionArea.style.display = 'block';
@@ -1681,29 +1608,27 @@
                 
                 startLeaderboardListener(); 
                 startMultiplayerListener();
-                startWorldSyncListeners(); // NOUVEAU: Démarrer les listeners du monde
+                startWorldSyncListeners(); 
                 
-                gameIsOver = false; // Assurer que c'est faux
-                gameLoop(); // Démarrer la boucle de jeu
+                gameIsOver = false; 
+                gameLoop(); 
                 
             } else if (newState === 'GAMEOVER') {
                 document.getElementById('game-over-screen').style.display = 'block';
                 stopMultiplayerListener();
-                stopWorldSyncListeners(); // NOUVEAU: Arrêter les listeners du monde
+                stopWorldSyncListeners(); 
                 stopLeaderboardListener(); 
                 
-                // NOUVEAU: Arrêter la musique
                 if (audioReady) {
                     Tone.Transport.stop();
                     music.forEach(m => m.stop ? m.stop() : null);
                 }
                 
-                // Démarrer la musique de menu si activée
                 if(audioReady && gameSettings.musicEnabled) {
                     Tone.Transport.start();
                     music.forEach(m => m.start ? m.start(0) : null);
                 }
-                menuLoop(); // Démarrer l'animation de menu
+                menuLoop(); 
             }
             updateAllUI(); 
         }
@@ -1713,30 +1638,30 @@
             
             const cost = player.upgradeCosts[type];
             if (player.score >= cost) {
-                player.score -= cost; // CORRECTION: Supprimé la ligne 'score -= cost' en double
+                player.score -= cost; 
                 player.upgrades.level++; 
                 if (type === 'fireRate') {
                     player.upgrades.fireRate *= 0.85; 
                     player.upgradeCosts.fireRate = Math.floor(cost * 1.5);
                 } else if (type === 'shipSpeed') {
-                    player.upgrades.speed += 1.0 * GAME_SPEED; // CORRECTION: Amélioration (1.0)
+                    player.upgrades.speed += 1.0 * GAME_SPEED; 
                     player.upgradeCosts.shipSpeed = Math.floor(cost * 1.7);
                 } else if (type === 'bulletSpeed') {
-                    player.upgrades.bulletSpeed += 2 * GAME_SPEED; // CORRECTION: Amélioration (2.0)
+                    player.upgrades.bulletSpeed += 2 * GAME_SPEED; 
                     player.upgradeCosts.bulletSpeed = Math.floor(cost * 1.5);
                 } else if (type === 'maxHealth') {
                     player.upgrades.health += 40; 
                     player.health = player.upgrades.health; 
                     player.upgradeCosts.maxHealth = Math.floor(cost * 1.8);
                 } else if (type === 'radius') {
-                    player.upgrades.radius += 3; // Augmente la taille
-                    player.radius = player.upgrades.radius; // Appliquer immédiatement
+                    player.upgrades.radius += 3; 
+                    player.radius = player.upgrades.radius; 
                     player.upgradeCosts.radius = Math.floor(cost * 2.0);
                 } else if (type === 'bulletDamage') {
                     player.upgrades.bulletDamage += 10;
                     player.upgradeCosts.bulletDamage = Math.floor(cost * 1.8);
                 } else if (type === 'healthRegen') {
-                    player.upgrades.healthRegen += 0.05; // 0.05 HP par frame
+                    player.upgrades.healthRegen += 0.05; 
                     player.upgradeCosts.healthRegen = Math.floor(cost * 2.5);
                 }
                 updateAllUI();
@@ -1768,13 +1693,10 @@
 
         // --- Logique Multijoueur et Synchro ---
         
-        // CORRECTION: Suppression de la re-déclaration de dbGameDataRoot
-        // const dbGameDataRoot = ...
-
         async function updatePlayerPosition() {
             if (gameState !== 'GAME' || !player || !userId) return;
             
-            const playerDocRef = doc(db, `${dbGameDataRoot}/sessions`, sessionId); // CORRECTION
+            const playerDocRef = doc(db, `${dbGameDataRoot}/sessions`, sessionId); 
             const data = {
                 userId: userId, 
                 x: player.x,
@@ -1785,7 +1707,7 @@
                 playerName: player.playerName || 'Pilote',
                 hasAutoTurret: player.hasAutoTurret, 
                 radius: player.upgrades.radius, 
-                lastUpdate: Date.now(), // CORRECTION: Ajout de l'horodatage
+                lastUpdate: Date.now(), 
                 isShooting: controlState.shoot, 
                 lastShot: player.lastShot 
             };
@@ -1798,7 +1720,7 @@
             if (!db || !userId || typeof window.onSnapshot === 'undefined' || !dbGameDataRoot) return;
             if (unsubscribePlayers) unsubscribePlayers();
 
-            const sessionsColRef = collection(db, `${dbGameDataRoot}/sessions`); // CORRECTION
+            const sessionsColRef = collection(db, `${dbGameDataRoot}/sessions`); 
             const q = query(sessionsColRef); 
             
             unsubscribePlayers = onSnapshot(q, (snapshot) => {
@@ -1853,19 +1775,19 @@
         
         async function deletePlayerPosition() {
              if (!db || !userId || typeof window.doc === 'undefined' || typeof window.setDoc === 'undefined') return;
-             const playerDocRef = doc(db, `${dbGameDataRoot}/sessions`, sessionId); // CORRECTION
+             const playerDocRef = doc(db, `${dbGameDataRoot}/sessions`, sessionId); 
              try {
                  await setDoc(playerDocRef, { lastUpdate: 0 }, { merge: true });
              } catch (error) {}
         }
         
-        // --- NOUVEAU: Synchro du Monde (Création et Destruction) ---
+        // --- Synchro du Monde (Création et Destruction) ---
         
         function startWorldSyncListeners() {
             if (!db || unsubscribeWorldObjects || unsubscribeRemovals) return;
 
             // 1. Listener pour la CRÉATION d'objets
-            const worldCollection = collection(db, `${dbGameDataRoot}/world_objects`); // CORRECTION
+            const worldCollection = collection(db, `${dbGameDataRoot}/world_objects`); 
             unsubscribeWorldObjects = onSnapshot(worldCollection, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added") {
@@ -1876,7 +1798,7 @@
                             asteroids.push(obj);
                         } else if (obj.type === 'alien' && !aliens.find(a => a.id === obj.id)) {
                             aliens.push(obj);
-                        } else if (obj.type === 'brute' && !bruteAliens.find(a => a.id === obj.id)) {
+                        } else if (obj.type === 'brute' && !bruteAliens.find(b => b.id === obj.id)) {
                             bruteAliens.push(obj);
                         } else if (obj.type === 'powerup' && !powerUps.find(p => p.id === obj.id)) {
                             powerUps.push(obj);
@@ -1889,7 +1811,7 @@
             });
 
             // 2. Listener pour la DESTRUCTION d'objets
-            const removalCollection = collection(db, `${dbGameDataRoot}/object_removals`); // CORRECTION
+            const removalCollection = collection(db, `${dbGameDataRoot}/object_removals`); 
             unsubscribeRemovals = onSnapshot(removalCollection, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added" || change.type === "modified") {
@@ -1908,7 +1830,7 @@
             });
             
             // 3. Listener pour les ÉVÉNEMENTS GLOBAUX
-            const eventDoc = doc(db, `${dbGameDataRoot}/game_state`, "current_event"); // CORRECTION
+            const eventDoc = doc(db, `${dbGameDataRoot}/game_state`, "current_event"); 
             unsubscribeCurrentEvent = onSnapshot(eventDoc, (doc) => {
                 if (doc.exists()) {
                     const eventData = doc.data();
@@ -1936,27 +1858,27 @@
         // Fonction pour que TOUT LE MONDE signale la destruction/prise
         async function syncObjectRemoval(objectId) {
             if (!db) return;
-            const docRef = doc(db, `${dbGameDataRoot}/object_removals`, objectId); // CORRECTION
+            const docRef = doc(db, `${dbGameDataRoot}/object_removals`, objectId); 
             try {
                 await setDoc(docRef, { removedBy: userId, timestamp: Date.now() });
             } catch (error) { console.error("Erreur de synchro suppression:", error); }
         }
         
-        // NOUVEAU: Fonction pour que l'HÔTE signale un événement
+        // Fonction pour que l'HÔTE signale un événement
         async function syncEvent(eventData) {
             if (!db || !isHost) return; // Seul l'hôte peut envoyer
-            const eventDoc = doc(db, `${dbGameDataRoot}/game_state`, "current_event"); // CORRECTION
+            const eventDoc = doc(db, `${dbGameDataRoot}/game_state`, "current_event"); 
             try {
                 await setDoc(eventDoc, { ...eventData, timestamp: Date.now() });
             } catch (error) { console.error("Erreur de synchro événement:", error); }
         }
         
-        // NOUVEAU: Leaderboard Listener
+        // Leaderboard Listener
         function startLeaderboardListener() {
-            if (!db || typeof window.onSnapshot === 'undefined' || !dbGameDataRoot) return; // CORRECTION: S'assurer que dbGameDataRoot est défini
-            if (unsubscribeLeaderboard) unsubscribeLeaderboard(); // CORRECTION: Le bug était ici
+            if (!db || typeof window.onSnapshot === 'undefined' || !dbGameDataRoot) return; 
+            if (unsubscribeLeaderboard) unsubscribeLeaderboard(); 
             
-            const leaderboardColRef = collection(db, `${dbGameDataRoot}/leaderboard`); // CORRECTION
+            const leaderboardColRef = collection(db, `${dbGameDataRoot}/leaderboard`); 
             const q = query(leaderboardColRef, orderBy("score", "desc"), limit(5));
 
             unsubscribeLeaderboard = onSnapshot(q, (snapshot) => {
@@ -1999,14 +1921,11 @@
             player.killCount = 0; 
             player.lastShot = 0; 
 
-            // Vider les listes locales
             bullets = []; asteroids = []; aliens = []; particles = [], stars = [], powerUps = [], debris = [];
             laserWalls = []; 
-            bosses = []; // NOUVEAU
+            bosses = []; 
             bossSpawned = false; 
             bruteSpawned = false;
-
-            // NE PAS appeler createAsteroids() ici, l'hôte s'en chargera
             
             if (stars.length === 0) createStars();
             
@@ -2019,7 +1938,7 @@
             currentEvent = null; 
         }
 
-        // NOUVEAU: Fonction de création du Boss (écrit sur DB)
+        // Création du Boss (écrit sur DB)
         async function createBoss() {
             const b = {
                 type: 'boss',
@@ -2039,28 +1958,24 @@
                 lastLaserTime: 0,
                 bulletSpeed: 4 * GAME_SPEED, 
                 bulletRadius: 8,
-                level: "BOSS" // NOUVEAU
+                level: "BOSS" 
             };
             try {
-                // Ajouter à la DB (ce qui l'ajoutera localement pour tout le monde)
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); 
             } catch (e) {}
         }
 
-        // NOUVEAU: Mise à jour du Boss (LOCAL À L'HÔTE)
+        // Mise à jour du Boss (LOCAL À L'HÔTE)
         function updateBosses() {
-            // CORRECTION: Tourne sur TOUS les clients, mais seul l'hôte tire
             if (!player || bosses.length === 0) return; 
 
             for (const boss of bosses) {
-                // Mouvement Homing (local pour tous les joueurs)
                 const angleToTarget = Math.atan2(player.y - boss.y, player.x - boss.x);
-                boss.angle = angleToTarget; // Viser le joueur local
+                boss.angle = angleToTarget; 
                 const movementAngle = angleToTarget + Math.sin(Date.now() * 0.0005) * 0.5;
                 boss.x += Math.cos(movementAngle) * boss.speed;
                 boss.y += Math.sin(movementAngle) * boss.speed;
                 
-                // L'HÔTE est le seul à générer des tirs (qui sont locaux)
                 if (isHost) {
                     boss.lastShotTime += 16;
                     if (boss.lastShotTime >= boss.fireRate) {
@@ -2083,7 +1998,7 @@
             }
         }
 
-        // NOUVEAU: Le Boss tire (normal)
+        // Le Boss tire (normal)
         function fireBossBullet(boss, angleToPlayer) {
             bullets.push({
                 x: boss.x + Math.cos(angleToPlayer) * boss.radius,
@@ -2097,21 +2012,21 @@
             if(audioReady) alienShootSound.triggerAttackRelease("A3", "0.05"); 
         }
         
-        // NOUVEAU: Le Boss tire (Bombe)
+        // Le Boss tire (Bombe)
         function fireBossBomb(boss, angleToPlayer) {
              bullets.push({
                 x: boss.x + Math.cos(angleToPlayer) * boss.radius,
                 y: boss.y + Math.sin(angleToPlayer) * boss.radius,
-                radius: 15, // Plus grosse
-                speedX: Math.cos(angleToPlayer) * (boss.bulletSpeed * 0.5), // Plus lente
+                radius: 15, 
+                speedX: Math.cos(angleToPlayer) * (boss.bulletSpeed * 0.5), 
                 speedY: Math.sin(angleToPlayer) * (boss.bulletSpeed * 0.5),
                 isBossBullet: true, 
-                isBomb: true, // NOUVEAU
-                color: '#800080' // Violette
+                isBomb: true, 
+                color: '#800080' 
             });
         }
         
-        // NOUVEAU: Tir Laser du Boss
+        // Tir Laser du Boss
         function fireBossLaser(boss, angle) {
              let wall = {
                  x1: boss.x,
@@ -2119,25 +2034,21 @@
                  x2: boss.x + Math.cos(angle) * 2000,
                  y2: boss.y + Math.sin(angle) * 2000,
                  speedX: 0, speedY: 0,
-                 life: 1000, // Dure 1 seconde
+                 life: 1000, 
                  isBossLaser: true,
                  color: '#FFD700'
              };
              laserWalls.push(wall);
         }
 
-
-        // Démarrage d'une partie Solo (au centre)
         function startSoloGame() {
             if (gameState !== 'MENU' || !player) return;
-            isHost = true; // En solo, vous êtes l'hôte
+            isHost = true; 
             resetLevel(MAP_SIZE / 2, MAP_SIZE / 2);
-            createAsteroids(); // Créer les astéroïdes en solo
+            createAsteroids(); 
             setGameState('GAME');
-            // gameLoop(); // Appelé par setGameState
         }
 
-        // Démarrage d'une partie Multijoueur (avec téléportation)
         function startMultiplayerGame() {
             if (gameState !== 'MENU' || !player) return;
 
@@ -2145,7 +2056,6 @@
             let startY = MAP_SIZE / 2;
 
             if (otherPlayers.length > 0) {
-                // Téléportation à proximité du premier joueur trouvé
                 const target = otherPlayers[0];
                 startX = target.x + (Math.random() > 0.5 ? 100 : -100); 
                 startY = target.y + (Math.random() > 0.5 ? 100 : -100);
@@ -2153,17 +2063,15 @@
             
             resetLevel(startX, startY);
             setGameState('GAME');
-            // gameLoop(); // Appelé par setGameState
         }
         
         function gameLoop() {
-            if (gameIsOver) return; // S'arrêter si on n'est plus en jeu
+            if (gameIsOver) return; 
             requestAnimationFrame(gameLoop);
             update();
             draw();
         }
         
-        // CORRECTION: Déplacer la définition de updateLaserWalls AVANT update()
         function updateLaserWalls() {
              for (let i = laserWalls.length - 1; i >= 0; i--) {
                  const wall = laserWalls[i];
@@ -2180,16 +2088,13 @@
 
 
         function update() {
-            // NOUVEAU: Seul l'hôte gère les spawns et les événements
             if (isHost) {
-                // Logique d'apparition du Boss
                 if (player.score >= BOSS_SPAWN_SCORE && !bossSpawned && bosses.length === 0 && !currentEvent) { 
-                    syncEvent({ type: 'boss_spawn', title: translations[currentLang].alert_boss || '!! BOSS DETECTE !!' }); // MODIFIÉ
-                    createBoss(); // NOUVEAU: Crée le boss dans la DB
+                    syncEvent({ type: 'boss_spawn', title: translations[currentLang].alert_boss || '!! BOSS DETECTE !!' }); 
+                    createBoss(); 
                     bossSpawned = true;
                 }
                 
-                // Logique d'apparition des Brutes
                 if (player.score >= BRUTE_SPAWN_SCORE && !bruteSpawned && bruteAliens.length === 0 && !currentEvent) { 
                     spawnBruteAlien();
                     bruteSpawned = true;
@@ -2199,13 +2104,12 @@
                 updateEvents(); 
             }
             
-            // Tout le monde met à jour son propre vaisseau, les tirs, les particules, etc.
             updatePlayer(); 
             updateBullets(); 
             updateAsteroids(); 
             updateAliens();
             updateBruteAliens(); 
-            updateBosses(); // NOUVEAU: Tout le monde met à jour la position du boss
+            updateBosses(); 
             updateStars(); 
             updateParticles(); 
             updatePowerUps();
@@ -2214,9 +2118,8 @@
             checkCollisions(); 
             updateAllUI();
             
-            // NOUVEAU: Mettre à jour le classement en direct
             const now = Date.now();
-            if (now - lastLeaderboardUpdateTime > 5000) { // Update every 5 seconds
+            if (now - lastLeaderboardUpdateTime > 5000) { 
                 lastLeaderboardUpdateTime = now;
                 updateLeaderboard(player.playerName, player.score);
             }
@@ -2230,27 +2133,21 @@
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             drawStars(); 
             
-            // NOUVEAU: Dessin du cercle limite en jeu
             drawMapBoundary();
 
-            // Dessiner les éléments relatifs au joueur (centrés)
-            drawBosses(); // NOUVEAU
-            drawLaserWalls(); // NOUVEAU (Lasers du boss)
+            drawBosses(); 
+            drawLaserWalls(); 
             drawPlayer(); 
             drawBullets(); 
             drawAsteroids(); 
             drawAliens();
-            drawBruteAliens(); // NOUVEAU
+            drawBruteAliens(); 
             drawDebris(); 
             drawPowerUps();
             
-            // Dessiner les particules (effet de flamme) par-dessus tout le reste (sauf l'UI)
             drawParticles(); 
-
-            // drawMiniMap(); // SUPPRIMÉ
         }
         
-        // NOUVEAU: Dessin des Boss
         function drawBosses() {
             if (!player || bosses.length === 0) return;
 
@@ -2258,7 +2155,7 @@
             ctx.translate(-(player.x - canvas.width / 2), -(player.y - canvas.height / 2));
 
             bosses.forEach(boss => {
-                ctx.save(); // Sauvegarder pour chaque boss
+                ctx.save(); 
                 ctx.translate(boss.x, boss.y);
                 
                 ctx.shadowColor = boss.color;
@@ -2266,7 +2163,6 @@
                 ctx.strokeStyle = boss.color;
                 ctx.lineWidth = 5;
                 
-                // Forme de vaisseau
                 ctx.beginPath();
                 ctx.moveTo(boss.radius, 0);
                 ctx.lineTo(-boss.radius, -boss.radius * 0.7);
@@ -2274,7 +2170,6 @@
                 ctx.closePath();
                 ctx.stroke();
 
-                // NOUVEAU: Afficher le niveau (ou "BOSS")
                 ctx.fillStyle = boss.color;
                 ctx.font = '12px Consolas';
                 ctx.textAlign = 'center';
@@ -2282,14 +2177,13 @@
                 let levelText = boss.isUltraBoss ? translations[currentLang].level_ultra : translations[currentLang].level_boss;
                 ctx.fillText(levelText, 0, -boss.radius - 15);
                 
-                ctx.restore(); // Restaurer pour le prochain boss
+                ctx.restore(); 
             });
             
-            ctx.restore(); // Restaurer la translation de la caméra
+            ctx.restore(); 
             ctx.shadowBlur = 0;
         }
 
-        // NOUVEAU: Dessin du Mur Laser (Maintenant pour le Boss)
         function drawLaserWalls() {
             if (!player) return;
             ctx.save();
@@ -2299,7 +2193,6 @@
                 ctx.strokeStyle = wall.color || '#ff0000';
                 ctx.shadowColor = wall.color || '#ff0000';
                 ctx.shadowBlur = 20;
-                // NOUVEAU: Largeur différente pour les lasers
                 ctx.lineWidth = wall.isAlienLaser ? 3 : 15;
                 
                 ctx.beginPath();
@@ -2312,25 +2205,21 @@
             ctx.shadowBlur = 0;
         }
 
-        // NOUVEAU: Fonction pour dessiner la limite de la carte
         function drawMapBoundary() {
             const centerX = MAP_SIZE / 2;
             const centerY = MAP_SIZE / 2;
             const playerRelativeX = canvas.width / 2;
             const playerRelativeY = canvas.height / 2;
 
-            // Calculer la position relative du centre de la carte par rapport à la vue du joueur
             const mapCenterXOnScreen = playerRelativeX - (player.x - centerX);
             const mapCenterYOnScreen = playerRelativeY - (player.y - centerY);
 
             ctx.save();
             ctx.translate(mapCenterXOnScreen, mapCenterYOnScreen);
             
-            // Lueur forte pour un effet visuel
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 40; 
             
-            // Dessin du cercle
             ctx.strokeStyle = `rgba(255, 0, 0, 0.8)`;
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -2341,102 +2230,86 @@
             ctx.shadowBlur = 0;
         }
 
-        // NOUVEAU: Gérer les timers d'événements
         function updateEvents() {
             if (gameIsOver || gameState !== 'GAME') return;
 
-            // Gérer le timer d'événement
-            if (bosses.length === 0 && !currentEvent) { // Ne pas déclencher si un boss est déjà là
+            if (bosses.length === 0 && !currentEvent) { 
                 eventTimer -= 16;
                 if (eventTimer <= 0) {
                     triggerRandomEvent();
-                    // Réinitialiser le timer pour le prochain événement (entre 3 et 5 minutes)
                     eventTimer = (Math.random() * (EVENT_INTERVAL_MAX - EVENT_INTERVAL_MIN)) + EVENT_INTERVAL_MIN; 
                 }
             }
         }
 
-        // NOUVEAU: Déclencher un événement (par l'hôte)
         function triggerRandomEvent() {
             const roll = Math.random(); 
             let eventData = {};
             const lang = translations[currentLang];
 
-            if (roll < 0.4) { // 40% de chance d'invasion simple
+            if (roll < 0.4) { 
                 eventData = { type: 'invasion', kills: 13, title: lang.alert_invasion.replace('{kills}', 13) };
-                // Lancer l'invasion (ex: 5 aliens d'un coup)
                 for(let i=0; i<5; i++) {
-                    setTimeout(() => spawnAlien(1), i * 500); // Échelonner l'arrivée (Niveau 1)
+                    setTimeout(spawnAlien, i * 500); 
                 }
-            } else if (roll < 0.7) { // 30% de chance de Mega-Brute
+            } else if (roll < 0.7) { 
                 eventData = { type: 'mega_brute', title: lang.alert_mega_brute };
-                spawnMegaBrute(); // Nouvelle fonction
-            } else { // 30% de chance de Boss/Ultra-Boss (si le score le permet)
+                spawnMegaBrute(); 
+            } else { 
                 if (player.score > 5000) { 
                     eventData = { type: 'ultra_boss', title: lang.alert_ultra_boss };
-                    spawnUltraBoss(); // Nouvelle fonction
+                    spawnUltraBoss(); 
                 } else {
                     eventData = { type: 'invasion', kills: 3, title: lang.alert_invasion_small.replace('{kills}', 3) };
-                    for(let i=0; i<3; i++) { setTimeout(() => spawnAlien(1), i * 500); }
+                    for(let i=0; i<3; i++) { setTimeout(spawnAlien, i * 500); } 
                 }
             }
             
-            // Envoyer l'événement à tous les joueurs
             syncEvent(eventData);
         }
         
-        // NOUVEAU: Afficher l'alerte
         function showEventAlert(message) {
             if (!eventAlertElement) return;
             
             eventAlertElement.innerText = message;
             eventAlertElement.style.display = 'block';
             
-            // Retirer l'animation pour la redémarrer
             eventAlertElement.style.animation = 'none';
-            // Forcer le recalcul du style
             void eventAlertElement.offsetWidth; 
             
             eventAlertElement.style.animation = 'alertPulse 5s forwards';
 
-            // Cacher après 5 secondes (fin de l'animation)
             setTimeout(() => {
                 if(eventAlertElement && eventAlertElement.innerText === message) eventAlertElement.style.display = 'none';
             }, 5000);
         }
 
-        // NOUVEAU: Afficher l'alerte de succès
         function showSuccessAlert(message) {
             if (!eventSuccessElement) return;
             
             eventSuccessElement.innerText = message;
             eventSuccessElement.style.display = 'block';
             
-            // Ajouter la classe 'success'
             eventSuccessElement.classList.add('success');
             
-            // Retirer l'animation pour la redémarrer
             eventSuccessElement.style.animation = 'none';
             void eventSuccessElement.offsetWidth; 
             eventSuccessElement.style.animation = 'alertPulse 5s forwards';
 
-            // Cacher après 5 secondes
             setTimeout(() => {
                 if(eventSuccessElement && eventSuccessElement.innerText === message) eventSuccessElement.style.display = 'none';
             }, 5000);
         }
 
-        // --- NOUVEAU: Logique des Joysticks ---
+        // --- Logique des Joysticks ---
         
         function setupJoystickListeners() {
-            // --- Joystick de Mouvement (Gauche) ---
             moveArea.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                if (moveTouchId === null) { // Ne prendre que le premier doigt
+                if (moveTouchId === null) { 
                     const touch = e.changedTouches[0];
                     moveTouchId = touch.identifier;
                     
-                    // Positionner le joystick au point de contact
                     const rect = moveArea.getBoundingClientRect();
                     moveStartPos.x = touch.clientX - rect.left;
                     moveStartPos.y = touch.clientY - rect.top;
@@ -2479,7 +2352,6 @@
                     moveStick.style.left = `${moveStartPos.x + deltaX}px`;
                     moveStick.style.top = `${moveStartPos.y + deltaY}px`;
                     
-                    // Mettre à jour l'état des contrôles
                     controlState.left = (deltaX < -joyThreshold);
                     controlState.right = (deltaX > joyThreshold);
                     controlState.thrust = (deltaY < -joyThreshold);
@@ -2501,14 +2373,12 @@
                 }
             }, { passive: false });
             
-            // --- Joystick d'Action (Droite) ---
             actionArea.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 if (actionTouchId === null) {
                     const touch = e.changedTouches[0];
                     actionTouchId = touch.identifier;
                     
-                    // Positionner le joystick au point de contact
                     const rect = actionArea.getBoundingClientRect();
                     actionStartPos.x = touch.clientX - rect.left;
                     actionStartPos.y = touch.clientY - rect.top;
@@ -2521,7 +2391,7 @@
                     actionBase.style.display = 'block';
                     actionStick.style.display = 'block';
                     
-                    controlState.shoot = true; // Tirer dès qu'on touche
+                    controlState.shoot = true; 
                 }
             }, { passive: false });
 
@@ -2553,7 +2423,7 @@
                     actionStick.style.left = `${actionStartPos.x + deltaX}px`;
                     actionStick.style.top = `${actionStartPos.y + deltaY}px`;
                     
-                    controlState.shoot = true; // Continuer de tirer
+                    controlState.shoot = true; 
                 }
             }, { passive: false });
 
@@ -2573,7 +2443,6 @@
 
 
         function setupControls() {
-            // --- Contrôles Clavier ---
             document.addEventListener('keydown', (e) => {
                 if (gameIsOver) return;
                 switch(e.key) {
@@ -2592,31 +2461,25 @@
                 }
             });
             
-            // --- NOUVEAU: Contrôles Tactiles (Joysticks) ---
             if (isMobile()) {
                 setupJoystickListeners();
             }
         }
 
-        // NOUVEAU: Fonction pour quitter la partie
         async function goToMenu() {
             if (gameState !== 'GAME') return;
-            gameIsOver = true; // Arrête la boucle de jeu
+            gameIsOver = true; 
             
-            // Sauvegarder et mettre à jour le classement
             await handleGameOverLogic();
             
             setGameState('MENU');
         }
 
         function setupNavigationListeners() {
-            // CORRECTION: Vérifier si playButton existe avant de lire 'hasListener'
             if (playButton && playButton.hasListener) return;
 
-            // NOUVEAU: Son de bouton
             const playSound = () => { if(audioReady) buttonSound.triggerAttackRelease("G5", "0.05"); };
             
-            // CORRECTION: Ajout de vérifications (null checks) pour tous les boutons
             if (playButton) playButton.addEventListener('click', () => { playSound(); startSoloGame(); }); 
             if (multiplayerButton) multiplayerButton.addEventListener('click', () => { playSound(); startMultiplayerGame(); });
             
@@ -2624,7 +2487,6 @@
             if (shopBackButton) shopBackButton.addEventListener('click', () => { playSound(); setGameState('MENU'); });
             if (restartButton) restartButton.addEventListener('click', () => { playSound(); setGameState('MENU'); }); 
             
-            // NOUVEAU: Listeners pour les paramètres
             if (settingsButton) {
                 settingsButton.addEventListener('click', () => { playSound(); setGameState('SETTINGS'); });
             }
@@ -2632,7 +2494,7 @@
                 settingsBackButton.addEventListener('click', () => {
                     playSound();
                     setGameState('MENU');
-                    saveGame(true); // Sauvegarder les paramètres en quittant
+                    saveGame(true); 
                 });
             }
             if (volumeSlider) {
@@ -2647,32 +2509,28 @@
                 toggleParticlesButton.addEventListener('click', () => {
                     playSound();
                     gameSettings.particlesEnabled = !gameSettings.particlesEnabled;
-                    updateAllUI(); // Mettre à jour le texte du bouton
+                    updateAllUI(); 
                 });
             }
-            // NOUVEAU: Listener Musique
             if (toggleMusicButton) {
                 toggleMusicButton.addEventListener('click', () => {
                     playSound();
                     gameSettings.musicEnabled = !gameSettings.musicEnabled;
                     if (gameSettings.musicEnabled) {
-                        // Démarrer la musique (seulement si on est dans un menu)
                         if (gameState !== 'GAME' && audioReady) {
                              Tone.Transport.start();
                              music.forEach(m => m.start ? m.start(0) : null);
                         }
                     } else {
-                        // Arrêter la musique
                         if (audioReady) {
                             Tone.Transport.stop();
                             music.forEach(m => m.stop ? m.stop() : null);
                         }
                     }
-                    updateAllUI(); // Mettre à jour le texte
+                    updateAllUI(); 
                 });
             }
             
-            // NOUVEAU: Listener de Langue
             if (languageSelect) {
                 languageSelect.addEventListener('change', (e) => {
                     playSound();
@@ -2680,7 +2538,6 @@
                 });
             }
             
-            // NOUVEAU: Boutons d'upgrade déplacés dans la boutique
             if (buyFireRateBtn_shop) buyFireRateBtn_shop.addEventListener('click', () => { playSound(); buyUpgrade('fireRate'); });
             if (buyShipSpeedBtn_shop) buyShipSpeedBtn_shop.addEventListener('click', () => { playSound(); buyUpgrade('shipSpeed'); });
             if (buyBulletSpeedBtn_shop) buyBulletSpeedBtn_shop.addEventListener('click', () => { playSound(); buyUpgrade('bulletSpeed'); });
@@ -2689,14 +2546,12 @@
             if (buyBulletDamageBtn) buyBulletDamageBtn.addEventListener('click', () => { playSound(); buyUpgrade('bulletDamage'); });
             if (buyHealthRegenBtn) buyHealthRegenBtn.addEventListener('click', () => { playSound(); buyUpgrade('healthRegen'); });
             
-            // NOUVEAU: Boutons d'upgrade en JEU
             if (upgradeFireRateBtn) upgradeFireRateBtn.addEventListener('click', () => { playSound(); buyUpgrade('fireRate'); });
             if (upgradeShipSpeedBtn) upgradeShipSpeedBtn.addEventListener('click', () => { playSound(); buyUpgrade('shipSpeed'); });
             if (upgradeBulletSpeedBtn) upgradeBulletSpeedBtn.addEventListener('click', () => { playSound(); buyUpgrade('bulletSpeed'); });
             if (upgradeMaxHealthBtn) upgradeMaxHealthBtn.addEventListener('click', () => { playSound(); buyUpgrade('maxHealth'); });
-            if (backToMenuButton) backToMenuButton.addEventListener('click', () => { playSound(); goToMenu(); }); // NOUVEAU
+            if (backToMenuButton) backToMenuButton.addEventListener('click', () => { playSound(); goToMenu(); }); 
             
-            // NOUVEAU: Clics pour la boutique (sur le div parent)
             if (buySkinBlueBtn) buySkinBlueBtn.addEventListener('click', () => { playSound(); buyFromShop('skinBlue'); });
             if (buySkinRedBtn) buySkinRedBtn.addEventListener('click', () => { playSound(); buyFromShop('skinRed'); });
             if (buyAutoTurretBtn) buyAutoTurretBtn.addEventListener('click', () => { playSound(); buyFromShop('autoTurret'); });
@@ -2717,15 +2572,13 @@
         // --- Fonctions de dessin ---
         function drawPlayer(){
             if(!player)return;
-            // Dessin des autres joueurs
             otherPlayers.forEach(p=>{
                 ctx.save();
                 ctx.translate(p.x-(player.x-canvas.width/2),p.y-(player.y-canvas.height/2));
                 ctx.rotate(p.angle);
                 
-                // NOUVEAU: Appliquer le skin et la taille des autres joueurs
                 let pColor = p.skin === 'blue' ? '#0088ff' : (p.skin === 'red' ? '#ff4444' : '#aaaaaa');
-                let pRadius = p.radius || 15; // Utiliser la taille synchronisée ou défaut
+                let pRadius = p.radius || 15; 
                 
                 ctx.strokeStyle = pColor;
                 ctx.shadowColor = pColor;
@@ -2738,7 +2591,6 @@
                 ctx.closePath();
                 ctx.stroke();
                 
-                // NOUVEAU: Afficher la tourelle des autres joueurs
                 if (p.hasAutoTurret) {
                     const glow=Math.abs(Math.sin(Date.now()*0.005))*0.5+0.5;
                     ctx.fillStyle=`rgba(255, 200, 0, ${glow})`;
@@ -2755,14 +2607,13 @@
                 ctx.restore();
             });
             
-            // Dessin du joueur local
             ctx.save();
-            ctx.translate(canvas.width/2,canvas.height/2); // Le joueur local est toujours au centre
+            ctx.translate(canvas.width/2,canvas.height/2); 
             
             if(player.shieldActive){ctx.strokeStyle="#ffffff";ctx.fillStyle="rgba(255,255,255,0.2)";ctx.shadowColor="#ffffff";ctx.shadowBlur=30;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,player.radius+5,0,Math.PI*2);ctx.fill();ctx.stroke()}
             
             ctx.rotate(player.angle);
-            let pColor=player.skin==="blue"?"#0088ff":player.skin==="red"?"#ff4444":"#ffffff"; // CORRECTION: Couleur par défaut blanche
+            let pColor=player.skin==="blue"?"#0088ff":player.skin==="red"?"#ff4444":"#ffffff"; 
             ctx.shadowColor=pColor; ctx.shadowBlur=25; 
             
             const level=player.upgrades.level||0;
@@ -2794,17 +2645,14 @@
                 ctx.strokeStyle = a.color;
                 ctx.lineWidth = 2;
                 
-                // NOUVEAU: Forme basée sur le niveau
                 ctx.beginPath();
                 if (a.level === 2) {
-                    // Forme N.2 (Chevron)
                     ctx.moveTo(a.radius, 0);
                     ctx.lineTo(-a.radius, -a.radius);
                     ctx.lineTo(-a.radius * 0.5, 0);
                     ctx.lineTo(-a.radius, a.radius);
                     ctx.closePath();
                 } else if (a.level >= 3) {
-                    // Forme N.3 (Élite)
                     ctx.moveTo(a.radius, 0);
                     ctx.lineTo(-a.radius, -a.radius * 0.5);
                     ctx.lineTo(-a.radius, a.radius * 0.5);
@@ -2814,7 +2662,6 @@
                     ctx.moveTo(-a.radius * 0.5, a.radius * 0.8);
                     ctx.lineTo(-a.radius * 1.2, a.radius * 0.8);
                 } else {
-                    // Forme N.1 (Classique)
                     ctx.moveTo(a.radius, 0); 
                     ctx.lineTo(-a.radius, -a.radius * 0.7);
                     ctx.lineTo(-a.radius, a.radius * 0.7);
@@ -2822,13 +2669,11 @@
                 }
                 ctx.stroke();
 
-                // NOUVEAU: Afficher le niveau
                 ctx.fillStyle = a.color;
                 ctx.font = '10px Consolas';
                 ctx.textAlign = 'center';
                 ctx.fillText(`N.${a.level}`, 0, -a.radius - 15);
                 
-                // Barre de vie
                 const barWidth=a.radius*2;const barHeight=5;
                 ctx.fillStyle="#550000";
                 ctx.fillRect(-barWidth/2,-a.radius-barHeight-5,barWidth,barHeight);
@@ -2841,7 +2686,6 @@
             ctx.shadowBlur=0;
         }
         
-        // NOUVEAU: Dessin des "Brutes"
         function drawBruteAliens() {
             ctx.save();
             ctx.translate(-(player.x - canvas.width / 2), -(player.y - canvas.height / 2));
@@ -2852,7 +2696,6 @@
                 ctx.shadowColor = a.color;
                 ctx.shadowBlur = 20;
                 
-                // Forme plus large
                 ctx.beginPath();
                 ctx.moveTo(a.radius, 0);
                 ctx.lineTo(-a.radius, -a.radius * 0.9);
@@ -2862,7 +2705,6 @@
                 ctx.lineWidth = 4;
                 ctx.stroke();
 
-                // Barre de vie
                 const barWidth = a.radius * 2;
                 const barHeight = 5;
                 ctx.fillStyle = '#550000';
@@ -2885,7 +2727,6 @@
             for(const s of stars){
                 ctx.fillStyle="#ffffff";
                 ctx.beginPath();
-                // CORRECTION: s.Y (majuscule) était une erreur, remplacé par s.y (minuscule)
                 ctx.arc(s.x, s.y, s.speed, 0, Math.PI * 2);
                 ctx.fill();
             }
@@ -2894,7 +2735,6 @@
         
         function drawParticles(){if (!gameSettings.particlesEnabled) return; ctx.save();ctx.translate(-(player.x-canvas.width/2),-(player.y-canvas.height/2));for(let i=particles.length-1;i>=0;i--){const p=particles[i];ctx.globalAlpha=p.life/p.maxLife;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;ctx.restore()}
         
-        // NOUVEAU: Dessin des Power-Ups (Thème Blanc)
         function drawPowerUps(){
             ctx.save();
             ctx.translate(-(player.x - canvas.width / 2), -(player.y - canvas.height / 2));
@@ -2919,15 +2759,12 @@
             ctx.shadowBlur=0;
         }
 
-        // Mini-Map (Fonction vide, car supprimée)
-        function drawMiniMap() { }
-
         // --- Fonctions de mise à jour ---
         
         function updatePlayer() {
             if (!player) return;
-            if (controlState.left) player.angle -= playerTurnSpeed; // CORRECTION: Vitesse de rotation rapide (0.03)
-            if (controlState.right) player.angle += playerTurnSpeed; // CORRECTION: Vitesse de rotation rapide (0.03)
+            if (controlState.left) player.angle -= playerTurnSpeed; 
+            if (controlState.right) player.angle += playerTurnSpeed; 
             if (controlState.thrust) {
                 player.x += Math.cos(player.angle) * player.upgrades.speed;
                 player.y += Math.sin(player.angle) * player.upgrades.speed;
@@ -2945,7 +2782,6 @@
                 if (autoTurretTimer >= autoTurretFireRate) { autoTurretTimer = 0; fireAutoTurret() }
             }
 
-            // NOUVEAU: Régénération de vie (Maintenant à l'intérieur de updatePlayer)
             if (player.upgrades.healthRegen > 0 && player.health < player.upgrades.health) {
                 player.health += player.upgrades.healthRegen;
                 if (player.health > player.upgrades.health) {
@@ -2954,25 +2790,22 @@
             }
         }
         
-        // NOUVEAU: Vérifie les limites de la carte
         function checkMapBounds() {
             const centerX = MAP_SIZE / 2;
             const centerY = MAP_SIZE / 2;
             const distance = getDistance({x: player.x, y: player.y}, {x: centerX, y: centerY});
             
             if (distance > MAP_BOUND_RADIUS) {
-                // Perte de vie si en dehors de la limite
-                playerHit(1); // 1 point de dégât par frame
+                playerHit(1); 
             }
         }
 
         function fireBullet(){
             if(!player) return;
             const now = Date.now();
-            // CORRECTION DE BUG: Doit utiliser player.upgrades.fireRate
             if(now - lastShotTime < player.upgrades.fireRate) return; 
             lastShotTime = now;
-            player.lastShot = now; // NOUVEAU: Pour la synchro
+            player.lastShot = now; 
 
             bullets.push({
                 x: player.x + Math.cos(player.angle) * player.radius,
@@ -2982,23 +2815,17 @@
                 speedY: Math.sin(player.angle) * player.upgrades.bulletSpeed
             });
             
-            // CORRECTION: Déplacé à l'intérieur de la fonction
             if(audioReady) shootSound.triggerAttackRelease("C5", "0.1"); 
         }
         
-        // NOUVEAU: Tir cosmétique pour les autres joueurs
         function fireCosmeticBullet(otherPlayer) {
-            // CORRECTION: Son du tir des autres joueurs supprimé
-            // if(audioReady) alienShootSound.triggerAttackRelease("C4", "0.05"); 
-            
-            // Créer une balle visuelle
             bullets.push({
                 x: otherPlayer.x + Math.cos(otherPlayer.angle) * otherPlayer.radius,
                 y: otherPlayer.y + Math.sin(otherPlayer.angle) * otherPlayer.radius,
                 radius: 4,
-                speedX: Math.cos(otherPlayer.angle) * defaultSaveData.upgrades.bulletSpeed, // Utiliser une vitesse de base
+                speedX: Math.cos(otherPlayer.angle) * defaultSaveData.upgrades.bulletSpeed, 
                 speedY: Math.sin(otherPlayer.angle) * defaultSaveData.upgrades.bulletSpeed,
-                isCosmetic: true // NOUVEAU: Marqueur pour ne pas causer de dégâts
+                isCosmetic: true 
             });
         }
         
@@ -3014,13 +2841,11 @@
                     speedY: Math.sin(angle) * (player.upgrades.bulletSpeed * 0.65)
                 });
             }
-            // CORRECTION: Déplacé à l'intérieur de la fonction
             if(audioReady) shootSound.triggerAttackRelease("G4", "0.1"); 
         }
 
         function updateBullets(){for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.x+=b.speedX;b.y+=b.speedY;}}
         
-        // NOUVEAU: Création des astéroïdes (par l'hôte)
         async function createAsteroids(){
             if(!player) return;
             const safeRadius = 500; 
@@ -3043,9 +2868,8 @@
                     speedY:(Math.random()-.5)*0.6*GAME_SPEED
                 };
                 
-                // Écrire dans la base de données au lieu du tableau local
                 try {
-                    await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), a); // CORRECTION
+                    await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), a); 
                 } catch (e) {
                     console.error("Erreur création astéroïde: ", e);
                 }
@@ -3053,8 +2877,6 @@
         } 
         
         function respawnAsteroid(asteroid) {
-             // Cette fonction est maintenant seulement utilisée pour la destruction locale
-             // La VRAIE réapparition sera gérée par l'hôte via updateSpawners
              console.log("Astéroïde local détruit, l'hôte le recréera.");
         }
 
@@ -3062,27 +2884,24 @@
             for(const a of asteroids){
                 a.x+=a.speedX;
                 a.y+=a.speedY;
-                wrapCoordinates(a, MAP_SIZE, MAP_SIZE); // NOUVEAU: Wrap sur la MAP
+                wrapCoordinates(a, MAP_SIZE, MAP_SIZE); 
             }
         }
         
         function updateAliens(){
             if(!player)return;
             for(const a of aliens){
-                // CORRECTION: Mouvement Homing (suit le joueur)
                 const angleToPlayer = Math.atan2(player.y-a.y,player.x-a.x);
                 a.angle=angleToPlayer;
                 a.x+=Math.cos(angleToPlayer)*a.speed;
                 a.y+=Math.sin(angleToPlayer)*a.speed;
                 
-                // Tir (toujours local, ok)
                 a.lastShotTime += 16;
                 if (a.lastShotTime >= a.fireRate) {
                     a.lastShotTime = 0;
                     fireAlienBullet(a);
                 }
                 
-                // NOUVEAU: Tir Laser (Niveau 3+)
                 if (a.shootsLaser) {
                     a.lastLaserTime += 16;
                     if (a.lastLaserTime >= a.laserRate) {
@@ -3093,47 +2912,41 @@
             }
         }
         
-        // NOUVEAU: Tir des aliens de base
         function fireAlienBullet(alien) {
             bullets.push({
                 x: alien.x + Math.cos(alien.angle) * alien.radius,
                 y: alien.y + Math.sin(alien.angle) * alien.radius,
                 radius: 4,
-                speedX: Math.cos(alien.angle) * 3 * GAME_SPEED, // Tirs lents
+                speedX: Math.cos(alien.angle) * 3 * GAME_SPEED, 
                 speedY: Math.sin(alien.angle) * 3 * GAME_SPEED,
                 isAlienBullet: true, 
-                color: '#ff8888' // Rose/Rouge
+                color: '#ff8888' 
             });
-            // CORRECTION: Utiliser le son alien dédié
             if(audioReady) alienShootSound.triggerAttackRelease("C3", "0.05"); 
         }
         
-        // NOUVEAU: Tir laser des aliens de haut niveau
         function fireAlienLaser(alien, angle) {
             let wall = {
                  x1: alien.x,
                  y1: alien.y,
-                 x2: alien.x + Math.cos(angle) * 300, // Laser court (300px)
+                 x2: alien.x + Math.cos(angle) * 300, 
                  y2: alien.y + Math.sin(angle) * 300,
                  speedX: 0, speedY: 0,
-                 life: 500, // Dure 0.5 seconde
-                 isAlienLaser: true, // Marqueur différent
+                 life: 500, 
+                 isAlienLaser: true, 
                  color: '#ffffff'
              };
              laserWalls.push(wall);
         }
         
-        // NOUVEAU: Mise à jour des "Brutes"
         function updateBruteAliens() {
             if (!player) return;
             for (const a of bruteAliens) {
-                // CORRECTION: Mouvement Homing (suit le joueur)
                 const angleToPlayer = Math.atan2(player.y - a.y, player.x - a.x);
                 a.angle = angleToPlayer;
                 a.x += Math.cos(angleToPlayer) * a.speed;
                 a.y += Math.sin(angleToPlayer) * a.speed;
 
-                // Tir (toujours local, ok)
                 a.lastShotTime += 16;
                 if (a.lastShotTime >= a.fireRate) {
                     a.lastShotTime = 0;
@@ -3142,29 +2955,26 @@
             }
         }
 
-        // NOUVEAU: Tir des "Brutes"
         function fireBruteBullet(brute) {
             bullets.push({
                 x: brute.x + Math.cos(brute.angle) * brute.radius,
                 y: brute.y + Math.sin(brute.angle) * brute.radius,
                 radius: 6,
-                speedX: Math.cos(brute.angle) * 3 * GAME_SPEED, // Tirs lents
+                speedX: Math.cos(brute.angle) * 3 * GAME_SPEED, 
                 speedY: Math.sin(brute.angle) * 3 * GAME_SPEED,
                 isBruteBullet: true, 
-                color: '#800080' // Violet
+                color: '#800080' 
             });
-            if(audioReady) alienShootSound.triggerAttackRelease("G2", "0.2"); // CORRECTION: Utiliser le son alien dédié
+            if(audioReady) alienShootSound.triggerAttackRelease("G2", "0.2"); 
         }
         
         function createDebris(x, y, radius) {if (!gameSettings.particlesEnabled) return; const debrisCount = Math.floor(radius / 5);for (let i = 0; i < debrisCount; i++) {const angle = Math.random() * Math.PI * 2;const speed = Math.random() * 2 + 1;debris.push({x: x,y: y,radius: Math.random() * 3 + 1,angle: Math.random() * Math.PI * 2,speedX: Math.cos(angle) * speed * GAME_SPEED,speedY: Math.sin(angle) * speed * GAME_SPEED,color: '#ffffff',life: 40 })}}
         function updateDebris() {if (!gameSettings.particlesEnabled) return; for (let i = debris.length - 1; i >= 0; i--) {const d = debris[i];d.x += d.speedX;d.y += d.speedY;d.angle += 0.1;d.life--;if (d.life<=0){debris.splice(i,1);}}}
         
-        // CORRECTION: Écrit dans la DB (par l'hôte) + NIVEAUX
         async function spawnAlien(){
-            // Déterminer le niveau en fonction du score de l'hôte
             let level = 1;
             if (player.score > 5000) {
-                level = 3; // 
+                level = 3; 
             } else if (player.score > 2000) {
                 level = 2;
             }
@@ -3187,7 +2997,7 @@
                 speed = 0.5 * GAME_SPEED;
                 health = 200;
                 shootsLaser = true;
-                laserRate = 5000; // Tire un laser toutes les 5 sec
+                laserRate = 5000; 
             }
             
             const a = {
@@ -3197,34 +3007,32 @@
                 angle: 0, 
                 health: health, maxHealth: health, 
                 fireRate: 13000, lastShotTime: 0,
-                level: level, // NOUVEAU
-                shootsLaser: shootsLaser, // NOUVEAU
-                laserRate: laserRate, // NOUVEAU
-                lastLaserTime: lastLaserTime // NOUVEAU
+                level: level, 
+                shootsLaser: shootsLaser, 
+                laserRate: laserRate, 
+                lastLaserTime: lastLaserTime 
             };
             try {
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), a); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), a); 
             } catch(e) {}
         }
         
-        // NOUVEAU: Spawn des "Brutes" (par l'hôte)
         async function spawnBruteAlien() {
             const e=Math.floor(Math.random()*4);let x,y;if(e===0){x=-20;y=Math.random()*MAP_SIZE}else if(e===1){x=MAP_SIZE+20;y=Math.random()*MAP_SIZE}else if(e===2){x=Math.random()*MAP_SIZE;y=-20}else{x=Math.random()*MAP_SIZE;y=MAP_SIZE+20}
             
             const b = {
                 type: 'brute',
                 x:x, y:y, radius: 25, color: '#800080', 
-                speed: 0.3 * GAME_SPEED, // CORRECTION: Vitesse pour le homing
+                speed: 0.3 * GAME_SPEED, 
                 angle: 0, 
                 health: 500, maxHealth: 500,
                 fireRate: 5000, lastShotTime: 0
             };
              try {
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); 
             } catch(e) {}
         }
         
-        // NOUVEAU: Spawn de la Mega Brute (Écrit sur DB)
         async function spawnMegaBrute() {
             const e=Math.floor(Math.random()*4);let x,y;if(e===0){x=-20;y=Math.random()*MAP_SIZE}else if(e===1){x=MAP_SIZE+20;y=Math.random()*MAP_SIZE}else if(e===2){x=Math.random()*MAP_SIZE;y=-20}else{x=Math.random()*MAP_SIZE;y=MAP_SIZE+20}
             
@@ -3235,14 +3043,13 @@
                 angle: 0, 
                 health: 2000, maxHealth: 2000, 
                 fireRate: 1500, lastShotTime: 0, 
-                isMegaBrute: true // Marqueur
+                isMegaBrute: true 
             };
             try {
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); 
             } catch(e) {}
         }
 
-        // NOUVEAU: Spawn du Boss Ultra (Écrit sur DB)
         async function spawnUltraBoss() {
             const b = {
                 type: 'boss',
@@ -3262,12 +3069,12 @@
                 lastLaserTime: 0,
                 bulletSpeed: 5 * GAME_SPEED, 
                 bulletRadius: 10,
-                isUltraBoss: true, // Marqueur
-                level: "ULTRA" // NOUVEAU
+                isUltraBoss: true, 
+                level: "ULTRA" 
             };
             bossSpawned = true; 
             try {
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), b); 
             } catch (e) {}
         }
         
@@ -3275,27 +3082,26 @@
         function updateStars(){for(const s of stars){let speed=s.speed;if(controlState.thrust){speed*=4}s.y+=speed;if(s.y>canvas.height){s.y=0;s.x=Math.random()*canvas.width}}}
         
         function spawnThrusterParticle() {
-            if (!player || !gameSettings.particlesEnabled) return; // NOUVEAU
-            const particleCount = 2; // Plus de particules pour un meilleur effet
+            if (!player || !gameSettings.particlesEnabled) return; 
+            const particleCount = 2; 
             for (let i = 0; i < particleCount; i++) {
-                const a = player.angle + Math.PI + (Math.random() - 0.5) * 0.4; // Cône derrière le vaisseau
-                const s = Math.random() * 2 + 1.5; // Vitesse
+                const a = player.angle + Math.PI + (Math.random() - 0.5) * 0.4; 
+                const s = Math.random() * 2 + 1.5; 
                 particles.push({
-                    x: player.x - Math.cos(player.angle) * player.radius, // Position arrière
-                    y: player.y - Math.sin(player.angle) * player.radius, // Position arrière
+                    x: player.x - Math.cos(player.angle) * player.radius, 
+                    y: player.y - Math.sin(player.angle) * player.radius, 
                     radius: Math.random() * 2 + 1.5,
                     speedX: Math.cos(a) * s * GAME_SPEED,
                     speedY: Math.sin(a) * s * GAME_SPEED,
-                    color: Math.random() > 0.3 ? "#ffaa00" : "#ff4400", // Orange et Rouge
-                    life: Math.random() * 20 + 20, // Courte durée de vie
+                    color: Math.random() > 0.3 ? "#ffaa00" : "#ff4400", 
+                    life: Math.random() * 20 + 20, 
                     maxLife: 40
                 });
             }
         }
 
-        // NOUVEAU: Particules d'explosion (anciennement spawnParticle)
         function spawnExplosionParticle(x, y, color = '#ffffff') {
-            if (!gameSettings.particlesEnabled) return; // NOUVEAU
+            if (!gameSettings.particlesEnabled) return; 
             const particleCount = 5;
             for (let i = 0; i < particleCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -3315,7 +3121,6 @@
         function updateParticles(){if (!gameSettings.particlesEnabled) {particles = []; return;} for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.speedX;p.y+=p.speedY;p.life--;if(p.life<=0){particles.splice(i,1)}}}
         function updatePowerUps(){for(let i=powerUps.length-1;i>=0;i--){const p=powerUps[i];p.life--;if(p.life<=0){powerUps.splice(i,1)}}}
         
-        // NOUVEAU: Écrit dans la DB (par l'hôte)
         async function spawnPowerUp(){
             const p = {
                 type: 'powerup',
@@ -3325,11 +3130,10 @@
                 life:POWERUP_MAX_LIFE
             };
             try {
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), p); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), p); 
             } catch(e) {}
         }
         
-        // NOUVEAU: Spawn de météorites (par l'hôte)
         async function spawnRandomMeteorite() {
             if (!player) return;
 
@@ -3349,21 +3153,19 @@
             };
             
              try {
-                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), a); // CORRECTION
+                await addDoc(collection(db, `${dbGameDataRoot}/world_objects`), a); 
             } catch(e) {}
         }
         
         function updateSpawners(){
             alienSpawnTimer+=16;if(alienSpawnTimer>=alienSpawnInterval){alienSpawnTimer=0;spawnAlien()}
-            powerUpSpawnTimer+=16;if(powerUpSpawnTimer>=powerUpSpawnInterval){powerUpSpawnTimer=0;spawnPowerUp()} // CORRECTION: powerUpSpawnTimer
+            powerUpSpawnTimer+=16;if(powerUpSpawnTimer>=powerUpSpawnInterval){powerUpSpawnTimer=0;spawnPowerUp()} 
             
-            // NOUVEAU: Spawn des Brutes (local à l'hôte)
             if (player.score >= BRUTE_SPAWN_SCORE && !bruteSpawned && bruteAliens.length === 0 && !currentEvent) {
                 spawnBruteAlien();
                 bruteSpawned = true; 
             }
 
-            // NOUVEAU: Spawn continu de météorites
             meteoriteSpawnTimer+=16;
             if(meteoriteSpawnTimer>=METEORITE_SPAWN_INTERVAL){
                 meteoriteSpawnTimer = 0;
@@ -3374,19 +3176,17 @@
         // --- Collisions ---
         function checkCollisions(){if(!player)return;let scoreGained=0;
             
-            // Boucle de destruction d'ennemis
             for(let i=bullets.length-1;i>=0;i--){
                 let bulletDestroyed = false;
                 const bullet = bullets[i];
                 
                 if (bullet.isCosmetic) continue; 
-                if (bullet.isBossBullet || bullet.isBruteBullet || bullet.isAlienBullet) continue; // Tirs amis
+                if (bullet.isBossBullet || bullet.isBruteBullet || bullet.isAlienBullet) continue; 
 
-                // Collision Boss (si existe)
-                for(let k=bosses.length-1;k>=0;k--){ // NOUVEAU: Boucle sur les boss
+                for(let k=bosses.length-1;k>=0;k--){ 
                     const boss = bosses[k];
                     if (getDistance(bullet, boss) < bullet.radius + boss.radius) {
-                        boss.health -= player.upgrades.bulletDamage; // Dégâts améliorés
+                        boss.health -= player.upgrades.bulletDamage; 
                         spawnExplosionParticle(bullet.x, bullet.y, '#ffff00');
                         if(audioReady) explosionSound.triggerAttackRelease("0.2"); 
                         if (boss.health <= 0) {
@@ -3394,25 +3194,24 @@
                             
                             if (boss.isUltraBoss) {
                                 player.score += 50000; 
-                                showSuccessAlert(translations[currentLang].success_ultra_boss); // NOUVEAU
+                                showSuccessAlert(translations[currentLang].success_ultra_boss); 
                             } else {
                                 player.score += 15000;
-                                showSuccessAlert(translations[currentLang].success_boss); // NOUVEAU
+                                showSuccessAlert(translations[currentLang].success_boss); 
                             }
                             
-                            syncObjectRemoval(boss.id); // NOUVEAU: Synchro
-                            bosses.splice(k, 1); // Retirer localement
+                            syncObjectRemoval(boss.id); 
+                            bosses.splice(k, 1); 
                             bossSpawned = false; 
                             currentEvent = null; 
                         }
                         bullets.splice(i, 1);
                         bulletDestroyed = true;
-                        break; // Le tir est détruit
+                        break; 
                     }
                 }
                 if(bulletDestroyed) continue;
                 
-                // Collision Tirs vs Brutes
                 for(let j=bruteAliens.length-1;j>=0;j--){
                     if(getDistance(bullet,bruteAliens[j])<bullet.radius+bruteAliens[j].radius){
                         bruteAliens[j].health -= player.upgrades.bulletDamage; 
@@ -3420,12 +3219,12 @@
                         if(audioReady) explosionSound.triggerAttackRelease("0.2"); 
                         if (bruteAliens[j].health <= 0) {
                             spawnExplosionParticle(bruteAliens[j].x, bruteAliens[j].y, '#800080');
-                            syncObjectRemoval(bruteAliens[j].id); // NOUVEAU: Synchro
+                            syncObjectRemoval(bruteAliens[j].id); 
                             
                             if (bruteAliens[j].isMegaBrute) {
                                 scoreGained += 1500; 
                                 currentEvent = null; 
-                                showSuccessAlert(translations[currentLang].success_mega_brute); // NOUVEAU
+                                showSuccessAlert(translations[currentLang].success_mega_brute); 
                             } else {
                                 scoreGained += 250;
                             }
@@ -3439,18 +3238,16 @@
                 }
                 if(bulletDestroyed) {bullets.splice(i,1); continue;}
                 
-                // Collisions Tirs vs Astéroïdes
                 for(let j=asteroids.length-1;j>=0;j--){
                     if(getDistance(bullet,asteroids[j])<bullet.radius+asteroids[j].radius){
                         createDebris(asteroids[j].x, asteroids[j].y, asteroids[j].radius);spawnExplosionParticle(asteroids[j].x, asteroids[j].y, '#ffffff');
                         if(audioReady) explosionSound.triggerAttackRelease("0.2"); 
-                        syncObjectRemoval(asteroids[j].id); // NOUVEAU: Synchro
+                        syncObjectRemoval(asteroids[j].id); 
                         asteroids.splice(j,1);scoreGained+=10;bulletDestroyed=true;break;
                     }
                 }
                 if(bulletDestroyed) {bullets.splice(i,1); continue;}
                 
-                // Collisions Tirs vs Aliens
                 for(let j=aliens.length-1;j>=0;j--){
                     if(getDistance(bullet,aliens[j])<bullet.radius+aliens[j].radius){
                         aliens[j].health -= player.upgrades.bulletDamage; 
@@ -3459,12 +3256,11 @@
                         
                         if (aliens[j].health <= 0) {
                             spawnExplosionParticle(aliens[j].x, aliens[j].y, '#ff0000');
-                            syncObjectRemoval(aliens[j].id); // NOUVEAU: Synchro
+                            syncObjectRemoval(aliens[j].id); 
                             aliens.splice(j,1);
                             scoreGained+=50;
                             player.killCount++;
 
-                            // --- NOUVELLE LOGIQUE D'INVASION ---
                             if (currentEvent && currentEvent.type === "invasion") {
                                 invasionKillsNeeded--;
                                 if (invasionKillsNeeded <= 0) {
@@ -3472,12 +3268,9 @@
                                     invasionKillsNeeded = 0;
                                     showSuccessAlert(translations[currentLang].success_invasion);
                                 } else {
-                                    // Mettre à jour l'alerte
                                     showEventAlert(translations[currentLang].alert_invasion_remaining.replace('{kills}', invasionKillsNeeded));
                                 }
                             }
-                            // --- FIN NOUVELLE LOGIQUE ---
-
                         }
                         bulletDestroyed=true;
                         break;
@@ -3486,18 +3279,17 @@
                 if(bulletDestroyed) {bullets.splice(i,1);}
             }
             
-            // Collisions avec le joueur
             for(let i=asteroids.length-1; i>=0; i--){
                 if(getDistance(player,asteroids[i])<player.radius+asteroids[i].radius){
                     playerHit(10);
-                    syncObjectRemoval(asteroids[i].id); // NOUVEAU: Synchro
+                    syncObjectRemoval(asteroids[i].id); 
                     asteroids.splice(i, 1);
                 }
             }
             for(let i=aliens.length-1; i>=0; i--){
                 if(getDistance(player,aliens[i])<player.radius+aliens[i].radius){
                     playerHit(20);
-                    syncObjectRemoval(aliens[i].id); // NOUVEAU: Synchro
+                    syncObjectRemoval(aliens[i].id); 
                     aliens.splice(i, 1);
                 }
             }
@@ -3507,7 +3299,6 @@
                 }
             }
             
-            // Tirs ennemis vs Joueur
             for(let i=bullets.length-1;i>=0;i--){
                 const bullet = bullets[i];
                 if (bullet.isBossBullet || bullet.isBruteBullet || bullet.isAlienBullet) {
@@ -3518,24 +3309,22 @@
                 }
             }
             
-            // Laser vs Joueur
             for (const wall of laserWalls) {
                 const distToWall = Math.abs((wall.y2 - wall.y1) * player.x - (wall.x2 - wall.x1) * player.y + wall.x2 * wall.y1 - wall.y2 * wall.x1) / 
                                    Math.sqrt(Math.pow(wall.y2 - wall.y1, 2) + Math.pow(wall.x2 - wall.x1, 2));
                 
-                if (wall.isAlienLaser && distToWall < player.radius + 5) { // Laser alien plus fin
+                if (wall.isAlienLaser && distToWall < player.radius + 5) { 
                     playerHit(15); 
-                } else if (wall.isBossLaser && distToWall < player.radius + 15) { // Laser boss large
+                } else if (wall.isBossLaser && distToWall < player.radius + 15) { 
                     playerHit(75); 
                 }
             }
             
-            // Joueur vs PowerUp
             for(let i=powerUps.length-1;i>=0;i--){
                 const p = powerUps[i];
                 if(getDistance(player,p)<player.radius+p.radius){
                     activateShield();
-                    syncObjectRemoval(p.id); // NOUVEAU: Synchro
+                    syncObjectRemoval(p.id); 
                     powerUps.splice(i,1);
                 }
             }
@@ -3543,12 +3332,9 @@
             if(scoreGained>0)player.score+=scoreGained;updateDebris()
         }
         function playerHit(damage){if(!player||player.shieldActive)return;player.health-=damage;
-            // CORRECTION: HitSound est retiré pour éviter l'erreur Tone.js car il est déclenché trop souvent
-            // if(audioReady) hitSound.triggerAttackRelease("A3", "0.2"); 
             if(player.health<=0){player.health=0;triggerGameOver()}}
-        function activateShield(){if(!player)return;player.shieldActive=true;player.shieldTimer=SHIELD_DURATION} // CORRECTION: Durée de 20s
+        function activateShield(){if(!player)return;player.shieldActive=true;player.shieldTimer=SHIELD_DURATION} 
         
-        // NOUVEAU: Logique de fin de partie séparée
         async function handleGameOverLogic() {
             await saveGame(true);
             await updateLeaderboard(player.playerName, player.score);
@@ -3562,13 +3348,12 @@
             await handleGameOverLogic();
 
             setGameState('GAMEOVER');
-            currentEvent = null; // NOUVEAU: Réinitialiser
+            currentEvent = null; 
         }
         
         // --- Fonctions utilitaires ---
         function getDistance(o1,o2){if(!o1||!o2)return 1000;const dx=o1.x-o2.x,dy=o1.y-o2.y;return Math.sqrt(dx*dx+dy*dy)}
         
-        // NOUVEAU: Wrap pour un monde infini (plus grand que l'écran)
         function wrapCoordinates(obj, width, height) {
             if (obj.x < -obj.radius) obj.x = width + obj.radius;
             if (obj.x > width + obj.radius) obj.x = -obj.radius;
@@ -3581,15 +3366,14 @@
         // --- Initialisation et Sauvegarde ---
         window.addEventListener('load', init);
         
-        async function init() { // Rendre init async
+        async function init() { 
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             
-            getUIElements(); // IMPORTANT: Récupérer les éléments AVANT de les utiliser
+            getUIElements(); 
 
-            // Démarrer l'audio sur la première interaction utilisateur
             document.body.addEventListener('click', () => {
                 if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
                     Tone.context.resume();
@@ -3600,19 +3384,15 @@
             }, { once: true });
             
             setupControls();
-            setupNavigationListeners(); // Mettre TOUS les listeners en place
+            setupNavigationListeners(); 
 
-            // --- NOUVELLE Logique d'authentification ---
             try {
                 if (typeof window.initAuth === 'function') {
-                    // Tenter la connexion auto (token ou anonyme)
                     const user = await window.initAuth(); 
                     
                     if (user) {
-                        // L'utilisateur était déjà connecté
                         await handleUserConnected(user);
                     } else {
-                        // Devrait être impossible avec la nouvelle logique initAuth, mais par sécurité :
                         console.error("Échec de la connexion anonyme/token.");
                         document.getElementById('user-id-display').innerText = `ERREUR DE CONNEXION.`;
                         if (playButton) playButton.disabled = true;
@@ -3628,42 +3408,44 @@
             }
         }
         
-        // NOUVELLE Fonction: Centralise la logique post-connexion
         async function handleUserConnected(user) {
             userId = user.uid;
             db = window.db; 
             auth = window.auth;
             appId = window.appId;
             
-            // CORRECTION: Définir les chemins de la DB ICI
-            dbGameDataRoot = `artifacts/${appId}/public/data`; // CORRECTION: Chemin du DOCUMENT 'data'
-            dbUserDataRoot = `artifacts/${appId}/users/${userId}`; // CORRECTION: Chemin de la COLLECTION '{userId}'
+            // Définir les chemins de la DB
+            // CORRECTION: Le chemin public doit pointer vers la *collection* 'data',
+            // et le chemin utilisateur vers le *document* 'game_save'.
+            // On utilise dbGameDataRoot pour la collection publique des scores/sessions
+            // et dbUserDataRoot pour le document de sauvegarde privé de l'utilisateur.
+            
+            // Chemin pour les données publiques (scores, sessions, monde)
+            dbGameDataRoot = `artifacts/${appId}/public/data`;
+            // Chemin pour les données privées de l'utilisateur (sauvegarde)
+            dbUserDataRoot = `artifacts/${appId}/users/${userId}`;
         
             document.getElementById('user-id-display').innerText = `ID: ${userId}`;
     
-            await loadGame(); // Charger les données
+            await loadGame(); 
             
-            // NOUVEAU: Appliquer les paramètres chargés
-            gameSettings = player.gameSettings || defaultSaveData.gameSettings; // Sécurité
-            if (mainVolume) { // S'assurer que l'audio est initialisé
+            gameSettings = player.gameSettings || defaultSaveData.gameSettings; 
+            if (mainVolume) { 
                 mainVolume.volume.value = gameSettings.volume;
             }
             if (volumeSlider) {
                 volumeSlider.value = gameSettings.volume;
             }
             
-            // NOUVEAU: Appliquer la langue
             currentLang = gameSettings.language || 'fr';
             setLanguage(currentLang);
             if (languageSelect) languageSelect.value = currentLang;
             
-            updateAllUI(); // Mettre à jour l'UI (y compris le texte du bouton particules)
+            updateAllUI(); 
             
-            // Activer les boutons
             if (playButton) playButton.disabled = false;
             if (shopButton) shopButton.disabled = false;
             if (multiplayerButton) multiplayerButton.disabled = false;
-            if (googleSignInButton) googleSignInButton.style.display = 'none'; // Cacher au cas où
         }
         
         async function loadGame() {
@@ -3674,23 +3456,22 @@
                 return;
             }
             
-            const docRef = doc(db, `${dbUserDataRoot}/game_save`, "playerData"); // CORRECTION
+            // Le document de sauvegarde est 'playerData' dans la collection 'game_save'
+            const docRef = doc(db, `${dbUserDataRoot}/game_save`, "playerData"); 
             try {
                 const docSnap = await getDoc(docRef);
                 
                 if (docSnap.exists()) {
                     console.log("Données chargées !");
                     
-                    // CORRECTION: Fusionner l'ancienne sauvegarde avec les nouvelles valeurs par défaut
                     let savedData = docSnap.data();
                     let newPlayer = JSON.parse(JSON.stringify(defaultSaveData));
                     Object.assign(newPlayer, savedData);
                     
-                    // CORRECTION: Gérer 'null' ou 'undefined' pour les objets imbriqués
                     newPlayer.upgrades = { ...defaultSaveData.upgrades, ...(savedData.upgrades || {}) };
                     newPlayer.upgradeCosts = { ...defaultSaveData.upgradeCosts, ...(savedData.upgradeCosts || {}) };
                     newPlayer.skinsOwned = { ...defaultSaveData.skinsOwned, ...(savedData.skinsOwned || {}) };
-                    newPlayer.gameSettings = { ...defaultSaveData.gameSettings, ...(savedData.gameSettings || {}) }; // NOUVEAU
+                    newPlayer.gameSettings = { ...defaultSaveData.gameSettings, ...(savedData.gameSettings || {}) }; 
                     
                     player = newPlayer;
                     
@@ -3715,11 +3496,9 @@
             }
             
             setGameState('MENU');
-            // Les boutons sont activés dans init() après la fin de loadGame
         }
 
         async function saveGame(forceSave = false) {
-            // Sauvegarde uniquement si on est en jeu ou si on force (ex: GameOver)
             if (gameState !== 'GAME' && !forceSave) return; 
             if (!db || !userId || !player || typeof window.setDoc === 'undefined') {
                 console.log("Sauvegarde impossible: DB/User/Player non prêt ou setDoc non défini.");
@@ -3735,9 +3514,9 @@
                 shopCosts: player.shopCosts, 
                 skinsOwned: player.skinsOwned,
                 playerName: player.playerName,
-                gameSettings: gameSettings // NOUVEAU: Sauvegarder les paramètres
+                gameSettings: gameSettings 
             };
-            const docRef = doc(db, `${dbUserDataRoot}/game_save`, "playerData"); // CORRECTION
+            const docRef = doc(db, `${dbUserDataRoot}/game_save`, "playerData"); 
             try {
                 await setDoc(docRef, dataToSave);
             } catch (error) {
@@ -3745,13 +3524,12 @@
             }
         }
         
-        // NOUVEAU: Met à jour le classement public
         async function updateLeaderboard(name, totalScore) {
             if (!db || !userId || typeof window.setDoc === 'undefined' || !dbGameDataRoot) return;
             
-            const leaderboardDocRef = doc(db, `${dbGameDataRoot}/leaderboard`, userId); // CORRECTION
+            // Le classement est public, donc il utilise dbGameDataRoot
+            const leaderboardDocRef = doc(db, `${dbGameDataRoot}/leaderboard`, userId); 
             try {
-                 // Ne met à jour le score que si le nouveau score est plus élevé
                 await setDoc(leaderboardDocRef, {
                     playerName: name,
                     score: totalScore,
@@ -3762,12 +3540,10 @@
             }
         }
         
-        // NOUVEAU: Fonction de traduction
         function setLanguage(lang) {
             if (!translations[lang]) return;
             currentLang = lang;
             
-            // 1. Traduire tous les éléments statiques avec data-lang
             document.querySelectorAll('[data-lang]').forEach(el => {
                 const key = el.getAttribute('data-lang');
                 if (translations[lang][key]) {
@@ -3775,7 +3551,6 @@
                 }
             });
             
-            // 2. Traduire les placeholders
             document.querySelectorAll('[data-lang-placeholder]').forEach(el => {
                 const key = el.getAttribute('data-lang-placeholder');
                 if (translations[lang][key]) {
@@ -3783,12 +3558,16 @@
                 }
             });
             
-            // 3. Mettre à jour tout le texte dynamique
+            // Mettre à jour le texte de la barre de vie du boss
+            const bossHealthLabel = document.querySelector('#boss-health-container::before');
+            if (bossHealthLabel) {
+                bossHealthLabel.content = translations[lang].alert_boss;
+            }
+            
             updateAllUI();
             
-            // 4. Sauvegarder le paramètre
             gameSettings.language = lang;
-            saveGame(true); // Forcer la sauvegarde des paramètres
+            saveGame(true); 
         }
         
     </script>
