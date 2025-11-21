@@ -21,8 +21,16 @@
         // Ces variables (__app_id, __firebase_config, __initial_auth_token)
         // seront injectées par l'environnement d'exécution (Canvas)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // CORRECTION: S'assurer que firebaseConfig est un objet, même si __firebase_config est vide
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' && __firebase_config ? __firebase_config : '{}');
+        // CORRECTION: Remplacement du code placeholder par votre configuration Firebase
+        const firebaseConfig = {
+          apiKey: "AIzaSyDkmmhhXG3o43DvJGcGJzrvP0mjiBo22eg",
+          authDomain: "spaceuniship.firebaseapp.com",
+          databaseURL: "https://spaceuniship-default-rtdb.firebaseio.com",
+          projectId: "spaceuniship",
+          storageBucket: "spaceuniship.firebasestorage.app",
+          messagingSenderId: "484977329858",
+          appId: "1:484977329858:web:f8e31562e276526bdadd5b"
+        };
 
         // --- Initialisation ---
         try {
