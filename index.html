@@ -9,8 +9,8 @@
     <script type="module">
         // --- Configuration Firebase (NE PAS MODIFIER) ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // CORRECTION: Suppression des imports Google Auth, retour à l'anonyme/token
-        import { getAuth, signInWithCustomToken, onAuthStateChanged, setPersistence, inMemoryPersistence, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // CORRECTION: Remplacement de 'localPersistence' par 'browserLocalPersistence'
+        import { getAuth, signInWithCustomToken, onAuthStateChanged, setPersistence, inMemoryPersistence, signInAnonymously, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         // --- Importation des fonctions Firestore nécessaires ---
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, setLogLevel, collection, query, where, limit, orderBy, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // NOUVEAU: addDoc, deleteDoc
 
@@ -58,8 +58,8 @@
 
             // Définir une fonction d'initialisation d'authentification globale
             window.initAuth = async () => {
-                // Utiliser la persistance en mémoire pour éviter les popups/problèmes d'iframe
-                await setPersistence(auth, inMemoryPersistence);
+                // NOUVELLE CORRECTION: Utiliser 'browserLocalPersistence' pour sauvegarder l'utilisateur
+                await setPersistence(auth, browserLocalPersistence);
                 
                 return new Promise((resolve, reject) => {
                     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -2804,7 +2804,7 @@
             const distance = getDistance({x: player.x, y: player.y}, {x: centerX, y: centerY});
             
             if (distance > MAP_BOUND_RADIUS) {
-                playerHit(1); 
+                playerHit(1, 'Hors Limites'); // NOUVEAU: Ajout du log de débogage
             }
         }
 
@@ -3289,21 +3289,21 @@
             
             for(let i=asteroids.length-1; i>=0; i--){
                 if(getDistance(player,asteroids[i])<player.radius+asteroids[i].radius){
-                    playerHit(10);
+                    playerHit(10, `Astéroïde ${asteroids[i].id}`); // NOUVEAU: Log de débogage
                     syncObjectRemoval(asteroids[i].id); 
                     asteroids.splice(i, 1);
                 }
             }
             for(let i=aliens.length-1; i>=0; i--){
                 if(getDistance(player,aliens[i])<player.radius+aliens[i].radius){
-                    playerHit(20);
+                    playerHit(20, `Alien ${aliens[i].id}`); // NOUVEAU: Log de débogage
                     syncObjectRemoval(aliens[i].id); 
                     aliens.splice(i, 1);
                 }
             }
             for(let i=bruteAliens.length-1; i>=0; i--){
                 if(getDistance(player,bruteAliens[i])<player.radius+bruteAliens[i].radius){
-                    playerHit(50);
+                    playerHit(50, `Brute ${bruteAliens[i].id}`); // NOUVEAU: Log de débogage
                 }
             }
             
@@ -3311,7 +3311,7 @@
                 const bullet = bullets[i];
                 if (bullet.isBossBullet || bullet.isBruteBullet || bullet.isAlienBullet) {
                     if (getDistance(player, bullet) < player.radius + bullet.radius) {
-                        playerHit(bullet.isBossBullet ? 50 : (bullet.isBruteBullet ? 30 : 10)); 
+                        playerHit(bullet.isBossBullet ? 50 : (bullet.isBruteBullet ? 30 : 10), 'Balle Ennemie'); // NOUVEAU: Log de débogage
                         bullets.splice(i, 1);
                     }
                 }
@@ -3322,9 +3322,9 @@
                                    Math.sqrt(Math.pow(wall.y2 - wall.y1, 2) + Math.pow(wall.x2 - wall.x1, 2));
                 
                 if (wall.isAlienLaser && distToWall < player.radius + 5) { 
-                    playerHit(15); 
+                    playerHit(15, 'Laser Alien'); // NOUVEAU: Log de débogage
                 } else if (wall.isBossLaser && distToWall < player.radius + 15) { 
-                    playerHit(75); 
+                    playerHit(75, 'Laser Boss'); // NOUVEAU: Log de débogage
                 }
             }
             
@@ -3339,8 +3339,8 @@
             
             if(scoreGained>0)player.score+=scoreGained;updateDebris()
         }
-        function playerHit(damage){if(!player||player.shieldActive)return;player.health-=damage;
-            if(player.health<=0){player.health=0;triggerGameOver()}}
+        function playerHit(damage, source = 'Inconnu'){if(!player||player.shieldActive)return;player.health-=damage;
+            if(player.health<=0){player.health=0;triggerGameOver(source)}} // NOUVEAU: Ajout du log de débogage
         function activateShield(){if(!player)return;player.shieldActive=true;player.shieldTimer=SHIELD_DURATION} 
         
         async function handleGameOverLogic() {
@@ -3348,7 +3348,8 @@
             await updateLeaderboard(player.playerName, player.score);
         }
         
-        async function triggerGameOver() {
+        async function triggerGameOver(source) { // NOUVEAU: Ajout du log de débogage
+            console.log(`GAME OVER: Déclenché par ${source}`); // NOUVEAU: Log de débogage
             gameIsOver = true;
             let scoreGained = player.score - (player.levelStartScore || player.score); 
             finalScoreDisplay.innerText = translations[currentLang].game_over_score.replace('{score}', scoreGained);
